@@ -85,23 +85,24 @@ The primary focus is improving software maintainability through modular programm
 ## 📂 Project Structure
 
 ```text
-Online-Quiz-System-TQM/
+QuizFlow/
 │
-├── main.py
-├── config.py
-├── database.py
-├── auth.py
-├── admin.py
-├── student.py
-├── quiz.py
-├── settings.py
-├── logger.py
-├── data/
-├── logs/
-├── tests/
-├── docs/
-├── README.md
-└── requirements.txt
+├─ backend/          ← API server (Python)
+│   ├─ app/          ← models, routes, services
+│   └─ requirements.txt
+│
+├─ desktop/          ← Desktop UI (Python‑Tkinter)
+│   └─ main.py
+│
+├─ mobile/           ← Mobile app (React‑Native)
+│   ├─ app/          ← screens & navigation
+│   └─ package.json
+│
+├─ docs/             ← Documentation (markdown)
+├─ scripts/          ← .bat files to start everything
+│
+├─ .gitignore        ← Tells Git what **not** to upload
+└─ README.md         ← This file (you’re reading it)
 ```
 
 *The folder structure may be adjusted during development.*
@@ -111,7 +112,7 @@ Online-Quiz-System-TQM/
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/Online-Quiz-System-TQM.git
+git clone https://github.com/Sagar23-coder/Online-Quiz-System-TQM.git
 ```
 
 ### 2. Open the Project Directory
