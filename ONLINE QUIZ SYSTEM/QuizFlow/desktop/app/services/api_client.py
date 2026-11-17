@@ -241,6 +241,21 @@ class ApiClient:
     def get_student_dashboard_stats(self) -> Tuple[bool, Any]:
         return self._request("GET", "/attempts/my-dashboard-stats")
 
+    # ------------------------------------------------------------------
+    # Share Quiz Link (Teacher/Organizer)
+    # ------------------------------------------------------------------
+    def get_share_link(self, quiz_id: int) -> Tuple[bool, Any]:
+        """Get or create the shareable link for a quiz."""
+        return self._request("POST", f"/organizer/quizzes/{quiz_id}/share-link")
+
+    def regenerate_share_link(self, quiz_id: int) -> Tuple[bool, Any]:
+        """Regenerate (rotate) the share token for a quiz."""
+        return self._request("POST", f"/organizer/quizzes/{quiz_id}/regenerate-share-link")
+
+    def toggle_share_link(self, quiz_id: int) -> Tuple[bool, Any]:
+        """Activate or deactivate the share link for a quiz."""
+        return self._request("POST", f"/organizer/quizzes/{quiz_id}/toggle-share-link")
+
 
 # Global desktop API client singleton
 api_client = ApiClient()

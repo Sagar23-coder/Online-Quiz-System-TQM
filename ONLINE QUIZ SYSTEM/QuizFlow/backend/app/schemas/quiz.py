@@ -46,6 +46,9 @@ class QuizAdminResponse(QuizBase):
     total_marks: int
     is_published: bool
     join_code: Optional[str] = None
+    share_token: Optional[str] = None
+    share_url: Optional[str] = None
+    is_share_link_active: bool = True
     results_released: bool = True
     is_disabled: bool = False
     created_by_id: int
@@ -101,15 +104,31 @@ class QuestionPerformanceStat(BaseModel):
 
 class ParticipantAttemptItem(BaseModel):
     attempt_id: int
-    student_id: int
+    student_id: Optional[int] = None
     student_name: str
-    student_email: str
+    student_email: Optional[str] = None
+    student_class: Optional[str] = None
+    student_section: Optional[str] = None
+    student_phone: Optional[str] = None
     status: str
     score_obtained: float
     total_marks: float
     percentage: float
     is_passed: bool
     submitted_at: Optional[datetime] = None
+
+
+class ShareQuizLinkResponse(BaseModel):
+    quiz_id: int
+    title: str
+    is_published: bool
+    is_share_link_active: bool
+    share_token: str
+    share_url: str
+    duration_minutes: int
+    max_attempts: int
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
 
 
 class QuizReportResponse(BaseModel):

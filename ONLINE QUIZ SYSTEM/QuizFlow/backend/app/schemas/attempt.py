@@ -4,7 +4,7 @@ Quiz Attempt and Answer Pydantic Schemas.
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.schemas.question import QuestionStudentResponse
 
@@ -104,3 +104,64 @@ class StudentDashboardStatsResponse(BaseModel):
     rank_text: str = "Top 15%"
     recent_results: List[dict] = []
     progress_trend: List[dict] = []
+
+
+# =========================================================================
+# Public Link-Based Student Quiz Participation Schemas (No Login Required)
+# =========================================================================
+
+class PublicStudentDetailsRequest(BaseModel):
+    full_name: str = Field(..., min_length=2, max_length=100)
+    student_class: str = Field(..., min_length=1, max_length=50)
+    section: str = Field(..., min_length=1, max_length=50)
+    email: Optional[str] = None
+    phone: Optional[str] = None
+
+
+class PublicQuizInfoResponse(BaseModel):
+    title: str
+    subject: Optional[str] = "General"
+    description: Optional[str] = None
+    instructions: Optional[str] = None
+    teacher_name: Optional[str] = "Instructor"
+    duration_minutes: int
+    total_questions: int
+    total_marks: int
+    passing_percentage: int
+    is_published: bool
+    is_active: bool
+    max_attempts: int = 1
+
+
+class PublicAttemptStartResponse(BaseModel):
+    attempt_token: str
+    quiz_title: str
+    student_name: str
+    student_class: str
+    student_section: str
+    duration_minutes: int
+    start_time: datetime
+    deadline_time: datetime
+    remaining_seconds: int
+    questions: List[QuestionStudentResponse]
+    saved_answers: Dict[int, Optional[str]] = {}
+
+
+class PublicAttemptResultResponse(BaseModel):
+    attempt_token: str
+    quiz_title: str
+    student_name: str
+    student_class: Optional[str] = None
+    student_section: Optional[str] = None
+    score_obtained: float
+    total_marks: float
+    percentage: float
+    passing_percentage: int
+    is_passed: bool
+    total_questions: int
+    correct_count: int
+    incorrect_count: int
+    unattempted_count: int
+    submitted_at: Optional[datetime] = None
+    results_released: bool = True
+    review: Optional[List[QuestionReviewItem]] = None

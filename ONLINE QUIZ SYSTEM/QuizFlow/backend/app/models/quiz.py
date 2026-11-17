@@ -25,6 +25,8 @@ class Quiz(Base):
 
     # Advanced Quiz Controls
     join_code = Column(String(16), unique=True, index=True, nullable=True)
+    share_token = Column(String(64), unique=True, index=True, nullable=True)
+    is_share_link_active = Column(Boolean, default=True, nullable=False)
     is_public = Column(Boolean, default=True, nullable=False)
     max_attempts = Column(Integer, default=1, nullable=False)
     release_results_immediately = Column(Boolean, default=True, nullable=False)

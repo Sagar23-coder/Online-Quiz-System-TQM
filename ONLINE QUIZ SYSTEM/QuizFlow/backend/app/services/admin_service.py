@@ -74,12 +74,13 @@ class AdminService:
 
         recent_items: List[RecentActivityItem] = []
         for a in recent:
-            student = db.query(User).filter(User.id == a.student_id).first()
+            student = db.query(User).filter(User.id == a.student_id).first() if a.student_id else None
+            student_name = a.participant_name or (student.full_name if student else "Public Student")
             quiz = db.query(Quiz).filter(Quiz.id == a.quiz_id).first()
             recent_items.append(
                 RecentActivityItem(
                     attempt_id=a.id,
-                    student_name=student.full_name if student else "Unknown",
+                    student_name=student_name,
                     quiz_title=quiz.title if quiz else "Quiz",
                     score_obtained=a.score_obtained,
                     total_marks=a.total_marks,
@@ -384,14 +385,19 @@ class AdminService:
 
         results: List[ResultListItem] = []
         for a in attempts:
-            student = db.query(User).filter(User.id == a.student_id).first()
+            student = db.query(User).filter(User.id == a.student_id).first() if a.student_id else None
+            student_name = a.participant_name or (student.full_name if student else "Public Student")
+            student_email = a.participant_email or (student.email if student else "N/A")
             quiz = db.query(Quiz).filter(Quiz.id == a.quiz_id).first()
             results.append(
                 ResultListItem(
                     attempt_id=a.id,
                     student_id=a.student_id,
-                    student_name=student.full_name if student else "Unknown",
-                    student_email=student.email if student else "N/A",
+                    student_name=student_name,
+                    student_email=student_email,
+                    student_class=a.participant_class,
+                    student_section=a.participant_section,
+                    student_phone=a.participant_phone,
                     quiz_id=a.quiz_id,
                     quiz_title=quiz.title if quiz else "Quiz",
                     status=a.status,

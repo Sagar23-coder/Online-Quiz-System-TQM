@@ -28,8 +28,10 @@ from app.schemas.quiz import (
     QuizReportResponse,
     QuizStudentResponse,
     QuizUpdate,
+    ShareQuizLinkResponse,
 )
 from app.services.audit_service import AuditService
+from app.core.config import settings
 
 
 def _generate_code() -> str:
@@ -48,7 +50,9 @@ class QuizService:
 
     @staticmethod
     def create_quiz(db: Session, quiz_in: QuizCreate, creator_id: int) -> QuizAdminResponse:
+        import secrets
         join_code = QuizService._get_unique_join_code(db)
+        share_token = secrets.token_urlsafe(16)
         quiz = Quiz(
             title=quiz_in.title.strip(),
             description=quiz_in.description.strip() if quiz_in.description else None,
@@ -65,6 +69,8 @@ class QuizService:
             end_time=quiz_in.end_time,
             is_disabled=False,
             join_code=join_code,
+            share_token=share_token,
+            is_share_link_active=True,
             created_by_id=creator_id,
         )
         db.add(quiz)
@@ -571,13 +577,18 @@ class QuizService:
 
         attempt_items = []
         for a in attempts:
-            st = db.query(User).filter(User.id == a.student_id).first()
+            st = db.query(User).filter(User.id == a.student_id).first() if a.student_id else None
+            student_name = a.participant_name or (st.full_name if st else "Student")
+            student_email = a.participant_email or (st.email if st else "N/A")
             attempt_items.append(
                 ParticipantAttemptItem(
                     attempt_id=a.id,
                     student_id=a.student_id,
-                    student_name=st.full_name if st else "Unknown",
-                    student_email=st.email if st else "N/A",
+                    student_name=student_name,
+                    student_email=student_email,
+                    student_class=a.participant_class,
+                    student_section=a.participant_section,
+                    student_phone=a.participant_phone,
                     status=a.status,
                     score_obtained=a.score_obtained,
                     total_marks=a.total_marks,
@@ -591,7 +602,7 @@ class QuizService:
         scores = [a.percentage for a in completed_attempts]
 
         total_attempts = len(attempts)
-        unique_participants = len({a.student_id for a in attempts})
+        unique_participants = len({a.participant_email or a.participant_phone or a.student_id or a.id for a in attempts})
         pass_count = sum(1 for a in completed_attempts if a.is_passed)
         fail_count = len(completed_attempts) - pass_count
 
@@ -768,7 +779,10 @@ class QuizService:
         writer.writerow([
             "Attempt ID",
             "Student Name",
-            "Student Email",
+            "Class",
+            "Section",
+            "Email",
+            "Mobile",
             "Score Obtained",
             "Total Marks",
             "Percentage",
@@ -781,7 +795,10 @@ class QuizService:
             writer.writerow([
                 a.attempt_id,
                 a.student_name,
-                a.student_email,
+                a.student_class or "N/A",
+                a.student_section or "N/A",
+                a.student_email or "N/A",
+                a.student_phone or "N/A",
                 a.score_obtained,
                 a.total_marks,
                 f"{a.percentage}%",
@@ -791,6 +808,109 @@ class QuizService:
             ])
 
         return output.getvalue()
+
+    @staticmethod
+    def get_or_create_share_link(db: Session, quiz_id: int, user_id: int, is_admin: bool = False) -> ShareQuizLinkResponse:
+        import secrets
+        quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()
+        if not quiz:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
+
+        if not is_admin and quiz.created_by_id != user_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to another teacher's quiz.")
+
+        if not quiz.share_token:
+            quiz.share_token = secrets.token_urlsafe(16)
+            db.commit()
+            db.refresh(quiz)
+
+        share_url = f"{settings.PUBLIC_BASE_URL}/quiz/{quiz.share_token}"
+        return ShareQuizLinkResponse(
+            quiz_id=quiz.id,
+            title=quiz.title,
+            is_published=quiz.is_published,
+            is_share_link_active=getattr(quiz, "is_share_link_active", True),
+            share_token=quiz.share_token,
+            share_url=share_url,
+            duration_minutes=quiz.duration_minutes,
+            max_attempts=quiz.max_attempts,
+            start_time=quiz.start_time,
+            end_time=quiz.end_time,
+        )
+
+    @staticmethod
+    def regenerate_share_link(db: Session, quiz_id: int, user_id: int, is_admin: bool = False) -> ShareQuizLinkResponse:
+        import secrets
+        quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()
+        if not quiz:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
+
+        if not is_admin and quiz.created_by_id != user_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to another teacher's quiz.")
+
+        old_token = quiz.share_token
+        quiz.share_token = secrets.token_urlsafe(16)
+        db.commit()
+        db.refresh(quiz)
+
+        AuditService.log(
+            db,
+            action="QUIZ_SHARE_LINK_REGENERATED",
+            user_id=user_id,
+            resource_type="quiz",
+            resource_id=quiz.id,
+            details={"old_token": old_token, "new_token": quiz.share_token},
+        )
+
+        share_url = f"{settings.PUBLIC_BASE_URL}/quiz/{quiz.share_token}"
+        return ShareQuizLinkResponse(
+            quiz_id=quiz.id,
+            title=quiz.title,
+            is_published=quiz.is_published,
+            is_share_link_active=getattr(quiz, "is_share_link_active", True),
+            share_token=quiz.share_token,
+            share_url=share_url,
+            duration_minutes=quiz.duration_minutes,
+            max_attempts=quiz.max_attempts,
+            start_time=quiz.start_time,
+            end_time=quiz.end_time,
+        )
+
+    @staticmethod
+    def toggle_share_link(db: Session, quiz_id: int, user_id: int, is_admin: bool = False) -> ShareQuizLinkResponse:
+        quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()
+        if not quiz:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
+
+        if not is_admin and quiz.created_by_id != user_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to another teacher's quiz.")
+
+        quiz.is_share_link_active = not getattr(quiz, "is_share_link_active", True)
+        db.commit()
+        db.refresh(quiz)
+
+        AuditService.log(
+            db,
+            action="QUIZ_SHARE_LINK_TOGGLED",
+            user_id=user_id,
+            resource_type="quiz",
+            resource_id=quiz.id,
+            details={"is_active": quiz.is_share_link_active},
+        )
+
+        share_url = f"{settings.PUBLIC_BASE_URL}/quiz/{quiz.share_token}" if quiz.share_token else ""
+        return ShareQuizLinkResponse(
+            quiz_id=quiz.id,
+            title=quiz.title,
+            is_published=quiz.is_published,
+            is_share_link_active=quiz.is_share_link_active,
+            share_token=quiz.share_token or "",
+            share_url=share_url,
+            duration_minutes=quiz.duration_minutes,
+            max_attempts=quiz.max_attempts,
+            start_time=quiz.start_time,
+            end_time=quiz.end_time,
+        )
 
     @staticmethod
     def get_quiz_questions_admin(db: Session, quiz_id: int) -> List[QuestionAdminResponse]:
@@ -809,6 +929,7 @@ class QuizService:
         attempt_count: int = 0,
         creator_name: Optional[str] = None,
     ) -> QuizAdminResponse:
+        share_url = f"{settings.PUBLIC_BASE_URL}/quiz/{quiz.share_token}" if quiz.share_token else None
         return QuizAdminResponse(
             id=quiz.id,
             title=quiz.title,
@@ -819,6 +940,9 @@ class QuizService:
             total_marks=quiz.total_marks,
             is_published=quiz.is_published,
             join_code=quiz.join_code,
+            share_token=quiz.share_token,
+            share_url=share_url,
+            is_share_link_active=getattr(quiz, "is_share_link_active", True),
             is_public=quiz.is_public,
             max_attempts=quiz.max_attempts,
             release_results_immediately=quiz.release_results_immediately,

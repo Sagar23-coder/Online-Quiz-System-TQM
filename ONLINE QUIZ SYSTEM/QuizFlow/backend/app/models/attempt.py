@@ -21,8 +21,17 @@ class QuizAttempt(Base):
     __tablename__ = "quiz_attempts"
 
     id = Column(Integer, primary_key=True, index=True)
-    student_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    student_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     quiz_id = Column(Integer, ForeignKey("quizzes.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Public Participant Identification (no login needed)
+    participant_name = Column(String(100), nullable=True, index=True)
+    participant_class = Column(String(50), nullable=True, index=True)
+    participant_section = Column(String(50), nullable=True)
+    participant_email = Column(String(100), nullable=True, index=True)
+    participant_phone = Column(String(30), nullable=True, index=True)
+    attempt_token = Column(String(64), unique=True, index=True, nullable=True)
+
     start_time = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     deadline_time = Column(DateTime(timezone=True), nullable=False)
     end_time = Column(DateTime(timezone=True), nullable=True)

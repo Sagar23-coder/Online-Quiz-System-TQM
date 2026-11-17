@@ -16,6 +16,7 @@ from app.schemas.quiz import (
     OrganizerDashboardStats,
     QuizAdminResponse,
     QuizReportResponse,
+    ShareQuizLinkResponse,
 )
 from app.services.quiz_service import QuizService
 from app.services.ai_generator_service import AIGeneratorService
@@ -107,6 +108,57 @@ def release_quiz_results(
     """
     is_admin = current_organizer.role == UserRole.ADMIN.value
     return QuizService.release_results(db, quiz_id, user_id=current_organizer.id, is_admin=is_admin)
+
+
+@router.post(
+    "/quizzes/{quiz_id}/share-link",
+    response_model=ShareQuizLinkResponse,
+    summary="Get or create public shareable quiz link",
+)
+def get_quiz_share_link(
+    quiz_id: int,
+    db: Session = Depends(get_db),
+    current_organizer: User = Depends(get_current_organizer),
+):
+    """
+    Generates or retrieves the secure shareable URL for student quiz participation.
+    """
+    is_admin = current_organizer.role == UserRole.ADMIN.value
+    return QuizService.get_or_create_share_link(db, quiz_id, user_id=current_organizer.id, is_admin=is_admin)
+
+
+@router.post(
+    "/quizzes/{quiz_id}/regenerate-share-link",
+    response_model=ShareQuizLinkResponse,
+    summary="Regenerate public shareable quiz link token",
+)
+def regenerate_quiz_share_link(
+    quiz_id: int,
+    db: Session = Depends(get_db),
+    current_organizer: User = Depends(get_current_organizer),
+):
+    """
+    Revokes the current shareable token and issues a new one without affecting existing submissions.
+    """
+    is_admin = current_organizer.role == UserRole.ADMIN.value
+    return QuizService.regenerate_share_link(db, quiz_id, user_id=current_organizer.id, is_admin=is_admin)
+
+
+@router.post(
+    "/quizzes/{quiz_id}/toggle-share-link",
+    response_model=ShareQuizLinkResponse,
+    summary="Activate or deactivate public shareable quiz link",
+)
+def toggle_quiz_share_link(
+    quiz_id: int,
+    db: Session = Depends(get_db),
+    current_organizer: User = Depends(get_current_organizer),
+):
+    """
+    Enables or disables public access via the shareable link.
+    """
+    is_admin = current_organizer.role == UserRole.ADMIN.value
+    return QuizService.toggle_share_link(db, quiz_id, user_id=current_organizer.id, is_admin=is_admin)
 
 
 @router.post(

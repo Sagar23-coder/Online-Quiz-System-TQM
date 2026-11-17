@@ -58,9 +58,12 @@ StudentListItem = UserManagementItem
 
 class ResultListItem(BaseModel):
     attempt_id: int
-    student_id: int
+    student_id: Optional[int] = None
     student_name: str
-    student_email: str
+    student_email: Optional[str] = None
+    student_class: Optional[str] = None
+    student_section: Optional[str] = None
+    student_phone: Optional[str] = None
     quiz_id: int
     quiz_title: str
     status: str

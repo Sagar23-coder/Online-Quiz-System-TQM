@@ -1,6 +1,7 @@
 """
-Modern Authentication Screen for Desktop App (Login and Multi-Role Registration).
-Designed with SaaS aesthetic: elevated card, smooth pill toggles, and role-based guidance.
+Modern Authentication Screen for Desktop App (Login and Teacher Registration).
+Designed with SaaS aesthetic: elevated card, smooth pill toggles.
+Students access quizzes via shared link — no login required.
 """
 import customtkinter as ctk
 from app.services.api_client import api_client
@@ -70,10 +71,10 @@ class AuthView(ctk.CTkFrame):
             text_color="#64748B",
         ).pack(anchor="center", pady=(0, 18))
 
-        # 2. Modern Segmented Mode Toggle (Sign In / Create Account)
+        # 2. Modern Segmented Mode Toggle (Sign In / Create Teacher Account)
         self.mode_toggle = ctk.CTkSegmentedButton(
             inner_card,
-            values=["Sign In", "Create Account"],
+            values=["Sign In", "Create Teacher Account"],
             command=self._on_mode_change,
             selected_color="#4F46E5",
             unselected_color="#F1F5F9",
@@ -170,38 +171,21 @@ class AuthView(ctk.CTkFrame):
             self.submit_btn.pack(fill="x", pady=(4, 16))
 
         else:
-            # Registration Mode: Role Selection
+            # Registration Mode: Teacher Only
+            info_banner = ctk.CTkFrame(self.form_frame, fg_color="#EEF2FF", corner_radius=8)
+            info_banner.pack(fill="x", pady=(0, 10))
             ctk.CTkLabel(
-                self.form_frame,
-                text="Choose Account Role",
+                info_banner,
+                text="✦ Creating an Organizer (Teacher) Account",
                 font=("Segoe UI", 12, "bold"),
-                text_color="#334155",
-                anchor="w",
-            ).pack(fill="x", pady=(0, 4))
-
-            self.role_toggle = ctk.CTkSegmentedButton(
-                self.form_frame,
-                values=["Participant (Student)", "Organizer (Teacher)"],
-                command=self._on_role_change,
-                selected_color="#4F46E5",
-                unselected_color="#F8FAFC",
-                text_color="#0F172A",
-                font=("Segoe UI", 12, "bold"),
-                height=34,
-                corner_radius=8,
-            )
-            self.role_toggle.set("Participant (Student)")
-            self.role_toggle.pack(fill="x", pady=(0, 4))
-
-            # Dynamic role guide banner
-            self.role_hint = ctk.CTkLabel(
-                self.form_frame,
-                text="✓ Take assessments, enter private join codes, and view graded scorecards",
+                text_color="#4F46E5",
+            ).pack(anchor="w", padx=10, pady=(6, 0))
+            ctk.CTkLabel(
+                info_banner,
+                text="Students access quizzes via a shared link — no login required.",
                 font=("Segoe UI", 11),
                 text_color="#64748B",
-                anchor="w",
-            )
-            self.role_hint.pack(fill="x", pady=(0, 10))
+            ).pack(anchor="w", padx=10, pady=(2, 6))
 
             # Full Name
             ctk.CTkLabel(
@@ -280,7 +264,7 @@ class AuthView(ctk.CTkFrame):
             # Submit Button
             self.submit_btn = ctk.CTkButton(
                 self.form_frame,
-                text="Create Student Account →",
+                text="Create Teacher Account →",
                 font=("Segoe UI", 14, "bold"),
                 fg_color="#4F46E5",
                 hover_color="#4338CA",
@@ -290,15 +274,6 @@ class AuthView(ctk.CTkFrame):
                 command=self._handle_register,
             )
             self.submit_btn.pack(fill="x", pady=(4, 6))
-
-    def _on_role_change(self, value):
-        is_teacher = "Organizer" in value
-        if is_teacher:
-            self.role_hint.configure(text="✓ Create curriculum tests, issue private join codes, and evaluate students")
-            self.submit_btn.configure(text="Create Teacher Account →")
-        else:
-            self.role_hint.configure(text="✓ Take assessments, enter private join codes, and view graded scorecards")
-            self.submit_btn.configure(text="Create Student Account →")
 
     def _handle_login(self):
         email = self.email_entry.get().strip()
@@ -322,8 +297,8 @@ class AuthView(ctk.CTkFrame):
         email = self.reg_email_entry.get().strip()
         password = self.reg_password_entry.get().strip()
         confirm = self.confirm_password_entry.get().strip()
-        is_teacher = "Organizer" in self.role_toggle.get()
-        role = "organizer" if is_teacher else "participant"
+        # Registration is always for Teacher/Organizer role (students use shared links)
+        role = "organizer"
 
         if not name or not email or not password:
             self.status_label.configure(text="Please complete all required fields.", text_color=Theme.DANGER)
@@ -335,8 +310,7 @@ class AuthView(ctk.CTkFrame):
 
         self.submit_btn.configure(state="disabled", text="Creating Account...")
         ok, res = api_client.register(email, name, password, confirm, role=role)
-        role_title = "Teacher" if is_teacher else "Student"
-        self.submit_btn.configure(state="normal", text=f"Create {role_title} Account →")
+        self.submit_btn.configure(state="normal", text="Create Teacher Account →")
 
         if ok:
             # Auto login upon registration

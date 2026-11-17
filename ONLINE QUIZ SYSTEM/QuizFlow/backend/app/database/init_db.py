@@ -36,6 +36,8 @@ def apply_safe_migrations(db: Session) -> None:
             ("subject", "VARCHAR(100) DEFAULT 'General'"),
             ("instructions", "TEXT"),
             ("join_code", "VARCHAR(16)"),
+            ("share_token", "VARCHAR(64)"),
+            ("is_share_link_active", "BOOLEAN DEFAULT 1 NOT NULL"),
             ("is_public", "BOOLEAN DEFAULT 1 NOT NULL"),
             ("max_attempts", "INTEGER DEFAULT 1 NOT NULL"),
             ("release_results_immediately", "BOOLEAN DEFAULT 1 NOT NULL"),
@@ -50,6 +52,44 @@ def apply_safe_migrations(db: Session) -> None:
                 logger.info("Migrating schema: adding column quizzes.%s", col_name)
                 db.execute(text(f"ALTER TABLE quizzes ADD COLUMN {col_name} {col_type}"))
                 db.commit()
+
+        # Generate share_tokens for any quizzes lacking one
+        import secrets
+        quizzes_without_token = db.execute(text("SELECT id FROM quizzes WHERE share_token IS NULL OR share_token = ''")).fetchall()
+        for (q_id,) in quizzes_without_token:
+            token = secrets.token_urlsafe(16)
+            db.execute(text("UPDATE quizzes SET share_token = :token WHERE id = :qid"), {"token": token, "qid": q_id})
+        if quizzes_without_token:
+            db.commit()
+            logger.info("Generated share tokens for %d quizzes.", len(quizzes_without_token))
+
+        # 2. Quiz Attempts table column inspection (Public student participation)
+        result_att = db.execute(text("PRAGMA table_info(quiz_attempts)")).fetchall()
+        existing_attempt_cols = {row[1] for row in result_att}
+        new_att_cols = [
+            ("participant_name", "VARCHAR(100)"),
+            ("participant_class", "VARCHAR(50)"),
+            ("participant_section", "VARCHAR(50)"),
+            ("participant_email", "VARCHAR(100)"),
+            ("participant_phone", "VARCHAR(30)"),
+            ("attempt_token", "VARCHAR(64)"),
+        ]
+        for col_name, col_type in new_att_cols:
+            if col_name not in existing_attempt_cols:
+                logger.info("Migrating schema: adding column quiz_attempts.%s", col_name)
+                db.execute(text(f"ALTER TABLE quiz_attempts ADD COLUMN {col_name} {col_type}"))
+                db.commit()
+
+        # Backfill participant_name and participant_email from users for historical attempts
+        try:
+            db.execute(text(
+                "UPDATE quiz_attempts SET participant_name = (SELECT full_name FROM users WHERE users.id = quiz_attempts.student_id), "
+                "participant_email = (SELECT email FROM users WHERE users.id = quiz_attempts.student_id) "
+                "WHERE (participant_name IS NULL OR participant_name = '') AND student_id IS NOT NULL"
+            ))
+            db.commit()
+        except Exception:
+            pass
 
         # Questions table column inspection (topic, difficulty, learning_objective)
         result_q = db.execute(text("PRAGMA table_info(questions)")).fetchall()

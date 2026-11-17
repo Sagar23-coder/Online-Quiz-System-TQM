@@ -334,7 +334,20 @@ class OrganizerQuizzesView(ctk.CTkFrame):
             command=lambda q_id=q["id"], pub=is_pub: self._toggle_publish(q_id, pub),
         ).pack(pady=(0, 4))
 
-        # 4. Delete
+        # 4. Share Quiz Link
+        ctk.CTkButton(
+            actions,
+            text="🔗 Share Link",
+            font=Theme.FONT_SMALL,
+            fg_color="#0EA5E9",
+            hover_color="#0284C7",
+            text_color="#FFFFFF",
+            width=135,
+            height=28,
+            command=lambda q_obj=q: ShareQuizDialog(self, q_obj, on_refresh=self.load_data),
+        ).pack(pady=(0, 4))
+
+        # 5. Delete
         ctk.CTkButton(
             actions,
             text="Delete",
@@ -366,3 +379,180 @@ class OrganizerQuizzesView(ctk.CTkFrame):
             else:
                 messagebox.showerror("Error", f"Failed to delete quiz: {res}")
 
+
+
+class ShareQuizDialog(ctk.CTkToplevel):
+    """
+    Professional Share Quiz Dialog — shows the shareable public quiz link,
+    allows copying, regenerating, and toggling the link's active state.
+    Students receive this link to access the quiz without logging in.
+    """
+
+    def __init__(self, master, quiz_data: dict, on_refresh=None):
+        super().__init__(master)
+        self.quiz_data = quiz_data
+        self.on_refresh = on_refresh
+        self.quiz_id = quiz_data["id"]
+
+        self.title("Share Quiz Link")
+        self.geometry("520x480")
+        self.configure(fg_color=Theme.BG_MAIN)
+        self.resizable(False, False)
+        self.grab_set()
+
+        # Center on parent
+        x = master.winfo_rootx() + (master.winfo_width() - 520) // 2
+        y = master.winfo_rooty() + (master.winfo_height() - 480) // 2
+        self.geometry(f"+{max(0, x)}+{max(0, y)}")
+
+        self._link_data = None
+        self._build_ui()
+        self._load_link()
+
+    def _build_ui(self):
+        card = ctk.CTkFrame(self, fg_color=Theme.BG_CARD, corner_radius=12,
+                            border_width=1, border_color=Theme.BORDER_COLOR)
+        card.pack(fill="both", expand=True, padx=16, pady=16)
+
+        # Header
+        hdr = ctk.CTkFrame(card, fg_color="transparent")
+        hdr.pack(fill="x", padx=20, pady=(16, 4))
+        ctk.CTkLabel(hdr, text="🔗  Share Quiz Link", font=Theme.FONT_HEADING,
+                     text_color=Theme.TEXT_MAIN).pack(side="left")
+
+        # Quiz title & status
+        info = ctk.CTkFrame(card, fg_color=Theme.BG_INPUT, corner_radius=8)
+        info.pack(fill="x", padx=20, pady=(8, 4))
+        is_pub = self.quiz_data.get("is_published", False)
+        status_color = Theme.SUCCESS if is_pub else Theme.WARNING
+        status_text = "✅ PUBLISHED" if is_pub else "⚠️  DRAFT (Not publicly accessible)"
+        ctk.CTkLabel(info, text=self.quiz_data.get("title", "Quiz"),
+                     font=Theme.FONT_BODY_BOLD, text_color=Theme.TEXT_MAIN,
+                     anchor="w").pack(fill="x", padx=12, pady=(10, 2))
+        ctk.CTkLabel(info, text=status_text, font=Theme.FONT_SMALL,
+                     text_color=status_color, anchor="w").pack(fill="x", padx=12, pady=(0, 10))
+
+        # URL display
+        url_lbl = ctk.CTkFrame(card, fg_color="transparent")
+        url_lbl.pack(fill="x", padx=20, pady=(10, 2))
+        ctk.CTkLabel(url_lbl, text="Shareable Quiz URL:", font=Theme.FONT_SMALL,
+                     text_color=Theme.TEXT_MUTED, anchor="w").pack(fill="x")
+
+        url_row = ctk.CTkFrame(card, fg_color="transparent")
+        url_row.pack(fill="x", padx=20, pady=(0, 4))
+        self.url_entry = ctk.CTkEntry(url_row, placeholder_text="Loading…",
+                                      fg_color=Theme.BG_INPUT, border_color=Theme.BORDER_COLOR,
+                                      font=Theme.FONT_SMALL, height=36, corner_radius=8)
+        self.url_entry.pack(side="left", fill="x", expand=True, padx=(0, 6))
+        ctk.CTkButton(url_row, text="📋 Copy", font=Theme.FONT_SMALL,
+                      fg_color=Theme.PRIMARY, hover_color=Theme.PRIMARY_HOVER,
+                      text_color="#FFFFFF", width=70, height=36, corner_radius=8,
+                      command=self._copy_link).pack(side="right")
+
+        # LOCAL DEV notice
+        self.dev_notice = ctk.CTkLabel(card,
+            text="⚠️  Local URL — only accessible on this machine.\nSet PUBLIC_BASE_URL in .env for internet sharing.",
+            font=Theme.FONT_SMALL, text_color="#D97706", justify="left", anchor="w")
+        self.dev_notice.pack(fill="x", padx=20, pady=(0, 8))
+
+        # Status badge
+        self.link_status_lbl = ctk.CTkLabel(card, text="Link status: loading…",
+                                            font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED)
+        self.link_status_lbl.pack(anchor="w", padx=20, pady=(4, 0))
+
+        # Action buttons
+        btn_row = ctk.CTkFrame(card, fg_color="transparent")
+        btn_row.pack(fill="x", padx=20, pady=(12, 4))
+
+        ctk.CTkButton(btn_row, text="🔄 Regenerate Link", font=Theme.FONT_SMALL,
+                      fg_color=Theme.WARNING, hover_color="#B45309",
+                      text_color="#FFFFFF", height=34, corner_radius=8,
+                      command=self._regenerate).pack(side="left", padx=(0, 8))
+
+        self.toggle_btn = ctk.CTkButton(btn_row, text="Deactivate Link", font=Theme.FONT_SMALL,
+                                        fg_color=Theme.DANGER, hover_color=Theme.DANGER_HOVER,
+                                        text_color="#FFFFFF", height=34, corner_radius=8,
+                                        command=self._toggle_active)
+        self.toggle_btn.pack(side="left")
+
+        # WhatsApp share hint
+        ctk.CTkFrame(card, fg_color=Theme.BORDER_COLOR, height=1).pack(fill="x", padx=20, pady=(12, 8))
+        ctk.CTkLabel(card,
+            text="💡 Tip: Copy the link and share via WhatsApp, Email, or any messaging app.\n"
+                 "Students open it in a browser — no account or app download needed.",
+            font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, justify="left", anchor="w",
+            wraplength=460).pack(fill="x", padx=20, pady=(0, 14))
+
+        # Close button
+        ctk.CTkButton(card, text="Close", font=Theme.FONT_BODY,
+                      fg_color=Theme.SECONDARY, hover_color=Theme.SECONDARY_HOVER,
+                      text_color="#FFFFFF", height=36, corner_radius=8,
+                      command=self.destroy).pack(padx=20, pady=(0, 14), fill="x")
+
+    def _load_link(self):
+        """Fetch or create the share link from the backend."""
+        ok, data = api_client.get_share_link(self.quiz_id)
+        if ok:
+            self._link_data = data
+            self._refresh_ui()
+        else:
+            self.url_entry.configure(placeholder_text=f"Error: {data}")
+            self.link_status_lbl.configure(text="⚠️  Could not load link.")
+
+    def _refresh_ui(self):
+        if not self._link_data:
+            return
+        url = self._link_data.get("share_url", "")
+        is_active = self._link_data.get("is_share_link_active", True)
+
+        # Update URL entry
+        self.url_entry.delete(0, "end")
+        self.url_entry.insert(0, url)
+
+        # Show/hide local dev notice
+        is_local = "localhost" in url or "127.0.0.1" in url
+        if is_local:
+            self.dev_notice.pack(fill="x", padx=20, pady=(0, 8))
+        else:
+            self.dev_notice.pack_forget()
+
+        # Link active status
+        if is_active:
+            self.link_status_lbl.configure(text="✅  Link is ACTIVE — students can access this quiz.",
+                                           text_color=Theme.SUCCESS)
+            self.toggle_btn.configure(text="🚫 Deactivate Link", fg_color=Theme.DANGER,
+                                      hover_color=Theme.DANGER_HOVER)
+        else:
+            self.link_status_lbl.configure(text="🚫  Link is INACTIVE — students cannot access.",
+                                           text_color=Theme.DANGER)
+            self.toggle_btn.configure(text="✅ Activate Link", fg_color=Theme.SUCCESS,
+                                      hover_color="#059669")
+
+    def _copy_link(self):
+        url = self.url_entry.get().strip()
+        if url:
+            self.clipboard_clear()
+            self.clipboard_append(url)
+            messagebox.showinfo("Copied!", "Quiz link copied to clipboard!\nPaste it in WhatsApp, Email, etc.")
+
+    def _regenerate(self):
+        if not messagebox.askyesno("Regenerate Link",
+            "Regenerating creates a new token. The old link will stop working.\n"
+            "Existing student submissions are preserved.\n\nContinue?"):
+            return
+        ok, data = api_client.regenerate_share_link(self.quiz_id)
+        if ok:
+            self._link_data = data
+            self._refresh_ui()
+            if self.on_refresh:
+                self.on_refresh()
+        else:
+            messagebox.showerror("Error", f"Could not regenerate link: {data}")
+
+    def _toggle_active(self):
+        ok, data = api_client.toggle_share_link(self.quiz_id)
+        if ok:
+            self._link_data = data
+            self._refresh_ui()
+        else:
+            messagebox.showerror("Error", f"Could not toggle link status: {data}")

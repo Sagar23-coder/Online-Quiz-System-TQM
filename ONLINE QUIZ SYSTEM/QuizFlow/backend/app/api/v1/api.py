@@ -10,6 +10,7 @@ from app.api.v1.health import router as health_router
 from app.api.v1.organizer import router as organizer_router
 from app.api.v1.questions import router as questions_router
 from app.api.v1.quizzes import router as quizzes_router
+from app.api.v1.public_quiz import router as public_quiz_router
 
 api_router = APIRouter()
 
@@ -18,6 +19,9 @@ api_router.include_router(health_router, tags=["Health"])
 
 # Authentication
 api_router.include_router(auth_router, prefix="/auth", tags=["Authentication"])
+
+# Public Quiz Participation (no auth required)
+api_router.include_router(public_quiz_router, tags=["Public Quiz"])
 
 # Quizzes
 api_router.include_router(quizzes_router, prefix="/quizzes", tags=["Quizzes"])

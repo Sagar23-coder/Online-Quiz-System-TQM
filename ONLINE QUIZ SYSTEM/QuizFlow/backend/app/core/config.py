@@ -25,6 +25,9 @@ class Settings:
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     DEBUG: bool = os.getenv("DEBUG", "True").lower() in ("true", "1", "yes")
 
+    # Public Quiz Web Base URL for Shareable Student Links
+    PUBLIC_BASE_URL: str = os.getenv("PUBLIC_BASE_URL", "http://localhost:8000").rstrip("/")
+
     # Security
     SECRET_KEY: str = os.getenv("SECRET_KEY") or secrets.token_urlsafe(32)
     ALGORITHM: str = os.getenv("ALGORITHM", "HS256")

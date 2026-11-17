@@ -1,9 +1,10 @@
 """
 Main Application Window Controller for QuizFlow Desktop.
-Implements unified SaaS shell across Admin, Teacher/Organizer, and Student workspaces:
+Implements unified SaaS shell across Admin and Teacher/Organizer workspaces:
 - Left Dark Navy Sidebar (#0F172A) with active indigo pills (#4F46E5) and operational status badge.
 - Top White Header Bar (#FFFFFF) with global search, interactive notification bell, and user profile pill.
 - Responsive, clean layout matching the visual reference design.
+Note: Students access quizzes via shared public links — no login or desktop app required.
 """
 from datetime import datetime
 import tkinter as tk
@@ -21,11 +22,6 @@ from app.ui.admin_results_view import AdminResultsView
 from app.ui.organizer_dashboard_view import OrganizerDashboardView, CreateOrEditQuizDialog
 from app.ui.organizer_quizzes_view import OrganizerQuizzesView
 from app.ui.organizer_results_view import OrganizerResultsView
-from app.ui.student_dashboard_view import StudentDashboardView
-from app.ui.student_quizzes_view import StudentQuizzesView
-from app.ui.student_results_view import StudentResultsView
-from app.ui.student_quiz_view import StudentQuizView
-from app.ui.student_result_view import StudentResultView
 
 
 class NotificationsDialog(ctk.CTkToplevel):
@@ -263,7 +259,37 @@ class MainWindow(ctk.CTk):
         elif role == "organizer":
             self.show_organizer_shell()
         else:
-            self.show_student_shell()
+            # Student accounts no longer use the desktop app.
+            # Students access quizzes via shared public links.
+            api_client.logout()
+            self._clear_window()
+            # Show informational screen
+            frame = ctk.CTkFrame(self, fg_color=Theme.BG_MAIN)
+            frame.pack(fill="both", expand=True)
+            ctk.CTkLabel(
+                frame,
+                text="🔗  Student Access Changed",
+                font=("Segoe UI", 22, "bold"),
+                text_color=Theme.TEXT_MAIN,
+            ).pack(pady=(80, 8))
+            ctk.CTkLabel(
+                frame,
+                text="Students now participate via a shared quiz link.\nAsk your teacher for the quiz link to begin.",
+                font=Theme.FONT_BODY,
+                text_color=Theme.TEXT_MUTED,
+                justify="center",
+            ).pack(pady=(0, 24))
+            ctk.CTkButton(
+                frame,
+                text="Back to Login",
+                fg_color=Theme.PRIMARY,
+                hover_color=Theme.PRIMARY_DARK,
+                font=Theme.FONT_BODY_BOLD,
+                height=40,
+                width=180,
+                corner_radius=8,
+                command=self.show_auth,
+            ).pack()
 
     # ------------------ Unified SaaS Shell Generator ------------------
     def _setup_base_shell(self, role_title: str, role_badge_text: str, role_badge_color: str):
@@ -641,107 +667,9 @@ class MainWindow(ctk.CTk):
             on_back=lambda: self.navigate_organizer("quizzes"),
         )
 
-    # ------------------ Student Shell (Student Portal) ------------------
-    def show_student_shell(self):
-        self._setup_base_shell(
-            role_title="Student Portal",
-            role_badge_text="Enrolled Student",
-            role_badge_color=Theme.COLOR_QUIZZES,
-        )
-
-        self.sidebar_buttons = {}
-
-        ctk.CTkLabel(
-            self.sidebar,
-            text="LEARNING",
-            font=("Segoe UI", 9, "bold"),
-            text_color=Theme.SIDEBAR_TEXT,
-            anchor="w",
-        ).pack(fill="x", padx=20, pady=(12, 4))
-
-        student_items = [
-            ("dashboard", "📊  My Dashboard"),
-            ("quizzes", "📝  Available Quizzes"),
-            ("results", "📈  Past Exam Results"),
-        ]
-        for key, label in student_items:
-            self._create_sidebar_btn(key, label, self.navigate_student)
-
-        self.navigate_student("dashboard")
-
-    def navigate_student(self, view_key: str):
-        for k, btn in self.sidebar_buttons.items():
-            if k == view_key:
-                btn.configure(
-                    fg_color=Theme.SIDEBAR_ACTIVE,
-                    text_color="#FFFFFF",
-                    font=Theme.FONT_BODY_BOLD,
-                )
-            else:
-                btn.configure(
-                    fg_color="transparent",
-                    text_color=Theme.SIDEBAR_TEXT,
-                    font=Theme.FONT_BODY,
-                )
-
-        for w in self.content_frame.winfo_children():
-            w.destroy()
-
-        if view_key == "dashboard":
-            self.current_view = StudentDashboardView(
-                self.content_frame,
-                student_user=self.current_user,
-                on_start_quiz=self.start_student_quiz,
-                on_view_result=self.view_student_result,
-            )
-        elif view_key == "quizzes":
-            self.current_view = StudentQuizzesView(
-                self.content_frame,
-                student_user=self.current_user,
-                on_start_quiz=self.start_student_quiz,
-            )
-        elif view_key == "results":
-            self.current_view = StudentResultsView(
-                self.content_frame,
-                student_user=self.current_user,
-                on_view_result=self.view_student_result,
-            )
-
-    def start_student_quiz(self, quiz_id: int):
-        ok, res = api_client.start_quiz(quiz_id)
-        if not ok:
-            dialog = ctk.CTkToplevel(self)
-            dialog.title("Unable to Start Quiz")
-            dialog.geometry("380x160")
-            dialog.configure(fg_color=Theme.BG_CARD)
-            ctk.CTkLabel(dialog, text=str(res), font=Theme.FONT_BODY, text_color=Theme.DANGER, wraplength=340).pack(pady=20)
-            ctk.CTkButton(dialog, text="Close", fg_color=Theme.PRIMARY, command=dialog.destroy).pack()
-            return
-
-        for w in self.content_frame.winfo_children():
-            w.destroy()
-
-        self.current_view = StudentQuizView(
-            self.content_frame,
-            attempt_data=res,
-            on_finish_quiz=self.on_quiz_finished,
-        )
-
-    def on_quiz_finished(self, result_data):
-        for w in self.content_frame.winfo_children():
-            w.destroy()
-        self.current_view = StudentResultView(
-            self.content_frame,
-            result_data=result_data,
-            on_back_to_dashboard=lambda: self.navigate_student("dashboard"),
-        )
-
-    def view_student_result(self, attempt_id: int):
-        ok, res = api_client.get_result(attempt_id)
-        if not ok:
-            messagebox.showerror("Error", f"Failed to load result: {res}")
-            return
-        self.on_quiz_finished(res)
+    # ------------------ Student Shell (REMOVED — students use shared links) ------------------
+    # Student shell methods removed. Students access quizzes via public browser links.
+    # Historical student data is preserved in the database and visible to Admin/Teacher dashboards.
 
 
 if __name__ == "__main__":

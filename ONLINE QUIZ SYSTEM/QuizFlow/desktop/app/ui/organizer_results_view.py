@@ -145,16 +145,20 @@ class OrganizerResultsView(ctk.CTkFrame):
         th = ctk.CTkFrame(table_card, fg_color="#F8FAFC", corner_radius=6, height=36)
         th.pack(fill="x", padx=16, pady=(16, 8))
         th.grid_columnconfigure(0, weight=3)
-        th.grid_columnconfigure(1, weight=4)
+        th.grid_columnconfigure(1, weight=3)
         th.grid_columnconfigure(2, weight=2)
         th.grid_columnconfigure(3, weight=2)
         th.grid_columnconfigure(4, weight=2)
+        th.grid_columnconfigure(5, weight=2)
+        th.grid_columnconfigure(6, weight=2)
 
         ctk.CTkLabel(th, text="STUDENT PARTICIPANT", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, anchor="w").grid(row=0, column=0, padx=12, pady=8, sticky="w")
         ctk.CTkLabel(th, text="ASSESSMENT QUIZ", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, anchor="w").grid(row=0, column=1, padx=12, pady=8, sticky="w")
-        ctk.CTkLabel(th, text="SCORE / PERCENTAGE", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, anchor="w").grid(row=0, column=2, padx=12, pady=8, sticky="w")
-        ctk.CTkLabel(th, text="STATUS", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, anchor="w").grid(row=0, column=3, padx=12, pady=8, sticky="w")
-        ctk.CTkLabel(th, text="SUBMITTED AT", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, anchor="w").grid(row=0, column=4, padx=12, pady=8, sticky="w")
+        ctk.CTkLabel(th, text="CLASS", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, anchor="w").grid(row=0, column=2, padx=12, pady=8, sticky="w")
+        ctk.CTkLabel(th, text="SECTION", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, anchor="w").grid(row=0, column=3, padx=12, pady=8, sticky="w")
+        ctk.CTkLabel(th, text="SCORE / %", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, anchor="w").grid(row=0, column=4, padx=12, pady=8, sticky="w")
+        ctk.CTkLabel(th, text="STATUS", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, anchor="w").grid(row=0, column=5, padx=12, pady=8, sticky="w")
+        ctk.CTkLabel(th, text="SUBMITTED AT", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, anchor="w").grid(row=0, column=6, padx=12, pady=8, sticky="w")
 
         self.table_body = ctk.CTkFrame(table_card, fg_color="transparent")
         self.table_body.pack(fill="both", expand=True, padx=16, pady=(0, 16))
@@ -231,10 +235,12 @@ class OrganizerResultsView(ctk.CTkFrame):
             )
             row.pack(fill="x", pady=3)
             row.grid_columnconfigure(0, weight=3)
-            row.grid_columnconfigure(1, weight=4)
+            row.grid_columnconfigure(1, weight=3)
             row.grid_columnconfigure(2, weight=2)
             row.grid_columnconfigure(3, weight=2)
             row.grid_columnconfigure(4, weight=2)
+            row.grid_columnconfigure(5, weight=2)
+            row.grid_columnconfigure(6, weight=2)
 
             # Student Name
             name_box = ctk.CTkFrame(row, fg_color="transparent")
@@ -255,10 +261,16 @@ class OrganizerResultsView(ctk.CTkFrame):
             # Quiz Title
             ctk.CTkLabel(row, text=s.get("quiz_title", "Assessment"), font=Theme.FONT_BODY, text_color=Theme.TEXT_MUTED, anchor="w").grid(row=0, column=1, padx=12, pady=10, sticky="w")
 
+            # Class
+            ctk.CTkLabel(row, text=s.get("student_class", "—"), font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, anchor="w").grid(row=0, column=2, padx=12, pady=10, sticky="w")
+
+            # Section
+            ctk.CTkLabel(row, text=s.get("student_section", "—"), font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, anchor="w").grid(row=0, column=3, padx=12, pady=10, sticky="w")
+
             # Score & Percentage
             pct = s.get("percentage", 0)
             score_txt = f"{pct}% ({s.get('score_obtained', 0)} / {s.get('total_marks', 0)})"
-            ctk.CTkLabel(row, text=score_txt, font=Theme.FONT_BODY_BOLD, text_color=Theme.TEXT_MAIN, anchor="w").grid(row=0, column=2, padx=12, pady=10, sticky="w")
+            ctk.CTkLabel(row, text=score_txt, font=Theme.FONT_BODY_BOLD, text_color=Theme.TEXT_MAIN, anchor="w").grid(row=0, column=4, padx=12, pady=10, sticky="w")
 
             # Status Badge Pill
             is_pass = s.get("is_passed", False)
@@ -273,13 +285,13 @@ class OrganizerResultsView(ctk.CTkFrame):
                 text_color=badge_fg,
                 fg_color=badge_bg,
                 corner_radius=4,
-            ).grid(row=0, column=3, padx=12, pady=10, sticky="w")
+            ).grid(row=0, column=5, padx=12, pady=10, sticky="w")
 
             # Submitted At
             d_str = str(s.get("submitted_at", "Recent"))
             if "T" in d_str:
                 d_str = d_str.split("T")[0]
-            ctk.CTkLabel(row, text=d_str, font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, anchor="w").grid(row=0, column=4, padx=12, pady=10, sticky="w")
+            ctk.CTkLabel(row, text=d_str, font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, anchor="w").grid(row=0, column=6, padx=12, pady=10, sticky="w")
 
     def _export_csv(self):
         if not self.submissions:
