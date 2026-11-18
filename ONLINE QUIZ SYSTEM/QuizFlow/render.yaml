@@ -1,0 +1,41 @@
+# ==============================================================================
+# Render Blueprint Specification for QuizFlow Backend
+# ==============================================================================
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: quizflow-backend
+    runtime: python
+    plan: free
+    region: oregon
+    # Root directory where QuizFlow lives:
+    # If your repository root is QuizFlow, omit or set to '.'
+    # If your repository root contains 'ONLINE QUIZ SYSTEM/QuizFlow', set rootDir accordingly.
+    buildCommand: pip install --upgrade pip && pip install -r backend/requirements.txt
+    startCommand: cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: PROJECT_NAME
+        value: QuizFlow
+      - key: API_V1_STR
+        value: /api/v1
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+        # Fill in Render dashboard with your Neon PostgreSQL URL:
+        # postgresql+psycopg2://user:password@host/dbname?sslmode=require
+      - key: PUBLIC_BASE_URL
+        sync: false
+        # Fill in Render dashboard with your assigned Render HTTPS URL:
+        # e.g. https://quizflow-backend.onrender.com
+      - key: BACKEND_CORS_ORIGINS
+        value: '["*"]'
