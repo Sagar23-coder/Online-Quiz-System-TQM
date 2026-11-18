@@ -22,10 +22,20 @@ class Question(Base):
     correct_option = Column(String(1), nullable=False)  # 'A', 'B', 'C', or 'D'
     marks = Column(Integer, default=1, nullable=False)
     explanation = Column(Text, nullable=True)
+    source = Column(String(20), default='manual', nullable=False)  # 'manual', 'imported', 'ai_generated'
     topic = Column(String(100), default="General", nullable=True, index=True)
     difficulty = Column(String(20), default="medium", nullable=True, index=True)
     learning_objective = Column(String(255), default="", nullable=True)
     order_index = Column(Integer, default=0, nullable=False)
+
+    # Bilingual Support (Hindi Localization)
+    question_text_hi = Column(Text, nullable=True)
+    option_a_hi = Column(Text, nullable=True)
+    option_b_hi = Column(Text, nullable=True)
+    option_c_hi = Column(Text, nullable=True)
+    option_d_hi = Column(Text, nullable=True)
+    explanation_hi = Column(Text, nullable=True)
+
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
     # Relationships

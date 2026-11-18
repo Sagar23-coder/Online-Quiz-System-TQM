@@ -19,14 +19,39 @@ else:
     load_dotenv()
 
 
+def get_network_ip() -> str:
+    """Get the machine's primary local network IP address."""
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(('8.8.8.8', 1))
+        ip = s.getsockname()[0]
+    except Exception:
+        try:
+            import socket
+            ip = socket.gethostbyname(socket.gethostname())
+        except Exception:
+            ip = "127.0.0.1"
+    finally:
+        s.close()
+    return ip
+
+
 class Settings:
     PROJECT_NAME: str = os.getenv("PROJECT_NAME", "QuizFlow")
     API_V1_STR: str = os.getenv("API_V1_STR", "/api/v1")
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     DEBUG: bool = os.getenv("DEBUG", "True").lower() in ("true", "1", "yes")
 
-    # Public Quiz Web Base URL for Shareable Student Links
-    PUBLIC_BASE_URL: str = os.getenv("PUBLIC_BASE_URL", "http://localhost:8000").rstrip("/")
+    # Public Quiz Web Base URL for Shareable Student Links (Accessible on Any System)
+    _public_base_url_env: str = os.getenv("PUBLIC_BASE_URL", "").rstrip("/")
+
+    @property
+    def PUBLIC_BASE_URL(self) -> str:
+        if self._public_base_url_env and "localhost" not in self._public_base_url_env and "127.0.0.1" not in self._public_base_url_env:
+            return self._public_base_url_env
+        port = os.getenv("PORT", "8000")
+        return f"http://{get_network_ip()}:{port}"
 
     # Security
     SECRET_KEY: str = os.getenv("SECRET_KEY") or secrets.token_urlsafe(32)
@@ -35,6 +60,20 @@ class Settings:
 
     # Database
     DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'quizflow.db'}")
+
+    @property
+    def SQLALCHEMY_DATABASE_URL(self) -> str:
+        """
+        Normalize DATABASE_URL for SQLAlchemy 2.0.
+        Converts 'postgres://' or 'postgresql://' prefixes to 'postgresql+psycopg2://'
+        for PostgreSQL connections from Render/Neon/Supabase.
+        """
+        url = self.DATABASE_URL
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql+psycopg2://", 1)
+        elif url.startswith("postgresql://") and not url.startswith("postgresql+"):
+            url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
+        return url
 
     # Bootstrap Admin
     FIRST_SUPERUSER_EMAIL: str = os.getenv("FIRST_SUPERUSER_EMAIL", "")

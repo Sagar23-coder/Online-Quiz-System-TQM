@@ -5,7 +5,7 @@ Manages student attempt lifecycles, timestamps, deadline enforcement, and scorin
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from app.database.session import Base
@@ -31,6 +31,10 @@ class QuizAttempt(Base):
     participant_email = Column(String(100), nullable=True, index=True)
     participant_phone = Column(String(30), nullable=True, index=True)
     attempt_token = Column(String(64), unique=True, index=True, nullable=True)
+
+    # Exam Mode Scrambling & Integrity Monitoring
+    question_order_seed = Column(Integer, default=0, nullable=True)
+    integrity_events = Column(Text, nullable=True)  # JSON-encoded client event logs (blur/focus/disconnects)
 
     start_time = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     deadline_time = Column(DateTime(timezone=True), nullable=False)

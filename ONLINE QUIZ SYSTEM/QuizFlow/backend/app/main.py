@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from app.api.v1.api import api_router
 from app.core.config import settings
@@ -65,6 +65,21 @@ else:
     )
 
 
+# Security Headers and Request Tracing Middleware
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    import secrets
+    correlation_id = request.headers.get("X-Request-ID") or secrets.token_hex(8)
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = correlation_id
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=()"
+    return response
+
+
 # Request Logging Middleware
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
@@ -118,7 +133,6 @@ def root():
 @app.get("/health", tags=["Health"])
 def direct_health():
     from sqlalchemy import text
-
     from app.database.session import SessionLocal
     db = SessionLocal()
     db_status = "healthy"
@@ -136,8 +150,44 @@ def direct_health():
     }
 
 
+@app.get("/health/ready", tags=["Health"])
+def readiness_probe():
+    """Readiness probe for cloud orchestrators (Render, Kubernetes). Checks database pool latency."""
+    import time
+    from sqlalchemy import text
+    from app.database.session import SessionLocal
+    start = time.time()
+    db = SessionLocal()
+    try:
+        db.execute(text("SELECT 1"))
+        latency_ms = round((time.time() - start) * 1000, 2)
+        return {
+            "status": "ready",
+            "database_latency_ms": latency_ms,
+            "app": settings.PROJECT_NAME,
+        }
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"status": "not_ready", "error": str(e)},
+        )
+    finally:
+        db.close()
+
+
 # Include API Routers
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+
+# Public Student Quiz Web Interface (Direct link access without login)
+@app.get("/quiz/{share_token}", response_class=HTMLResponse, tags=["Public Quiz Web"])
+def public_quiz_web_page(share_token: str):
+    from pathlib import Path
+    template_path = Path(__file__).resolve().parent / "templates" / "public_quiz.html"
+    if template_path.exists():
+        with open(template_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    return HTMLResponse(content="<h3>QuizFlow Student Assessment Portal</h3><p>Loading assessment...</p>")
 
 
 if __name__ == "__main__":

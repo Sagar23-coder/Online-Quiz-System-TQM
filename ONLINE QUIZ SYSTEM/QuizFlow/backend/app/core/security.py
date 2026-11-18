@@ -19,6 +19,23 @@ except ImportError:
     _USE_ARGON2 = False
 
 
+def validate_password_complexity(password: str) -> tuple[bool, str]:
+    """
+    Validate password complexity requirements:
+    - Minimum 8 characters
+    - At least one letter
+    - At least one digit or special character
+    """
+    if not password or len(password) < 8:
+        return False, "Password must be at least 8 characters long."
+    import re
+    if not re.search(r"[A-Za-z]", password):
+        return False, "Password must contain at least one letter."
+    if not re.search(r"[0-9!@#$%^&*(),.?\":{}|<>]", password):
+        return False, "Password must contain at least one digit or special character."
+    return True, ""
+
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plain password against the stored hash."""
     if not plain_password or not hashed_password:

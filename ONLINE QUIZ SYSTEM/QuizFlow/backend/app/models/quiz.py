@@ -23,6 +23,12 @@ class Quiz(Base):
     total_marks = Column(Integer, default=0, nullable=False)
     is_published = Column(Boolean, default=False, nullable=False)
 
+    # Quiz Mode: 'exam' (secure timer, randomized questions) or 'practice' (immediate feedback, hints)
+    mode = Column(String(20), default="exam", nullable=False)
+    shuffle_questions = Column(Boolean, default=True, nullable=False)
+    shuffle_options = Column(Boolean, default=True, nullable=False)
+    result_release_policy = Column(String(30), default="immediate", nullable=False)
+
     # Advanced Quiz Controls
     join_code = Column(String(16), unique=True, index=True, nullable=True)
     share_token = Column(String(64), unique=True, index=True, nullable=True)
