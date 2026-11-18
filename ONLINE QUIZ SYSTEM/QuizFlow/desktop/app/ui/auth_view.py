@@ -21,14 +21,20 @@ class AuthView(ctk.CTkFrame):
         self._build_ui()
 
     def _build_ui(self):
-        # Outer centering scroll container (ensures compatibility with any screen resolution)
+        # Outer centering scroll container (ensures compatibility with any screen resolution & scaling)
         self.scroll_wrap = ctk.CTkScrollableFrame(
             self,
             fg_color="transparent",
             corner_radius=0,
         )
-        self.scroll_wrap.grid(row=0, column=0, sticky="nsew", padx=16, pady=16)
+        self.scroll_wrap.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
         self.scroll_wrap.grid_columnconfigure(0, weight=1)
+
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        card_w = min(460, max(300, int(screen_w * 0.88)))
+        pad_x = 32 if screen_w >= 1200 else (22 if screen_w >= 800 else 16)
+        pad_y = 24 if screen_h >= 900 else (16 if screen_h >= 700 else 12)
 
         # Elevated Modern SaaS Card
         self.card = ctk.CTkFrame(
@@ -37,12 +43,12 @@ class AuthView(ctk.CTkFrame):
             corner_radius=16,
             border_width=1,
             border_color="#E2E8F0",
-            width=460,
+            width=card_w,
         )
-        self.card.grid(row=0, column=0, pady=20)
+        self.card.grid(row=0, column=0, pady=(12, 18))
 
         inner_card = ctk.CTkFrame(self.card, fg_color="transparent")
-        inner_card.pack(fill="both", expand=True, padx=36, pady=28)
+        inner_card.pack(fill="both", expand=True, padx=pad_x, pady=pad_y)
 
         # 1. Brand Logo Badge Row
         brand_row = ctk.CTkFrame(inner_card, fg_color="transparent")
@@ -133,7 +139,7 @@ class AuthView(ctk.CTkFrame):
             )
             self.email_entry.pack(fill="x", pady=(0, 12))
 
-            # Password Field
+            # Password Field with Eye Toggle
             ctk.CTkLabel(
                 self.form_frame,
                 text="Password",
@@ -142,8 +148,11 @@ class AuthView(ctk.CTkFrame):
                 anchor="w",
             ).pack(fill="x", pady=(0, 3))
 
+            pwd_box = ctk.CTkFrame(self.form_frame, fg_color="transparent")
+            pwd_box.pack(fill="x", pady=(0, 18))
+
             self.password_entry = ctk.CTkEntry(
-                self.form_frame,
+                pwd_box,
                 placeholder_text="Enter your password",
                 show="*",
                 fg_color="#F8FAFC",
@@ -152,7 +161,30 @@ class AuthView(ctk.CTkFrame):
                 height=40,
                 corner_radius=8,
             )
-            self.password_entry.pack(fill="x", pady=(0, 18))
+            self.password_entry.pack(side="left", fill="x", expand=True, padx=(0, 6))
+
+            self.login_pwd_visible = False
+            def _toggle_login_pwd():
+                self.login_pwd_visible = not self.login_pwd_visible
+                self.password_entry.configure(show="" if self.login_pwd_visible else "*")
+                eye_btn.configure(text="🔒" if self.login_pwd_visible else "👁️")
+
+            eye_btn = ctk.CTkButton(
+                pwd_box,
+                text="👁️",
+                width=42,
+                height=40,
+                font=("Segoe UI", 14),
+                fg_color="#F1F5F9",
+                hover_color="#E2E8F0",
+                text_color="#334155",
+                border_width=1,
+                border_color="#CBD5E1",
+                corner_radius=8,
+                command=_toggle_login_pwd,
+            )
+            eye_btn.pack(side="right")
+
             self.password_entry.bind("<Return>", lambda _: self._handle_login())
             self.email_entry.bind("<Return>", lambda _: self.password_entry.focus())
 
@@ -223,7 +255,7 @@ class AuthView(ctk.CTkFrame):
             )
             self.reg_email_entry.pack(fill="x", pady=(0, 8))
 
-            # Password
+            # Password with Eye Toggle
             ctk.CTkLabel(
                 self.form_frame,
                 text="Password (min 6 characters)",
@@ -231,8 +263,12 @@ class AuthView(ctk.CTkFrame):
                 text_color="#334155",
                 anchor="w",
             ).pack(fill="x", pady=(0, 2))
+
+            reg_pwd_box = ctk.CTkFrame(self.form_frame, fg_color="transparent")
+            reg_pwd_box.pack(fill="x", pady=(0, 8))
+
             self.reg_password_entry = ctk.CTkEntry(
-                self.form_frame,
+                reg_pwd_box,
                 placeholder_text="Create secure password",
                 show="*",
                 fg_color="#F8FAFC",
@@ -240,9 +276,31 @@ class AuthView(ctk.CTkFrame):
                 height=38,
                 corner_radius=8,
             )
-            self.reg_password_entry.pack(fill="x", pady=(0, 8))
+            self.reg_password_entry.pack(side="left", fill="x", expand=True, padx=(0, 6))
 
-            # Confirm Password
+            self.reg_pwd_visible = False
+            def _toggle_reg_pwd():
+                self.reg_pwd_visible = not self.reg_pwd_visible
+                self.reg_password_entry.configure(show="" if self.reg_pwd_visible else "*")
+                reg_eye_btn.configure(text="🔒" if self.reg_pwd_visible else "👁️")
+
+            reg_eye_btn = ctk.CTkButton(
+                reg_pwd_box,
+                text="👁️",
+                width=40,
+                height=38,
+                font=("Segoe UI", 13),
+                fg_color="#F1F5F9",
+                hover_color="#E2E8F0",
+                text_color="#334155",
+                border_width=1,
+                border_color="#CBD5E1",
+                corner_radius=8,
+                command=_toggle_reg_pwd,
+            )
+            reg_eye_btn.pack(side="right")
+
+            # Confirm Password with Eye Toggle
             ctk.CTkLabel(
                 self.form_frame,
                 text="Confirm Password",
@@ -250,8 +308,12 @@ class AuthView(ctk.CTkFrame):
                 text_color="#334155",
                 anchor="w",
             ).pack(fill="x", pady=(0, 2))
+
+            conf_pwd_box = ctk.CTkFrame(self.form_frame, fg_color="transparent")
+            conf_pwd_box.pack(fill="x", pady=(0, 14))
+
             self.confirm_password_entry = ctk.CTkEntry(
-                self.form_frame,
+                conf_pwd_box,
                 placeholder_text="Re-type password",
                 show="*",
                 fg_color="#F8FAFC",
@@ -259,7 +321,29 @@ class AuthView(ctk.CTkFrame):
                 height=38,
                 corner_radius=8,
             )
-            self.confirm_password_entry.pack(fill="x", pady=(0, 14))
+            self.confirm_password_entry.pack(side="left", fill="x", expand=True, padx=(0, 6))
+
+            self.conf_pwd_visible = False
+            def _toggle_conf_pwd():
+                self.conf_pwd_visible = not self.conf_pwd_visible
+                self.confirm_password_entry.configure(show="" if self.conf_pwd_visible else "*")
+                conf_eye_btn.configure(text="🔒" if self.conf_pwd_visible else "👁️")
+
+            conf_eye_btn = ctk.CTkButton(
+                conf_pwd_box,
+                text="👁️",
+                width=40,
+                height=38,
+                font=("Segoe UI", 13),
+                fg_color="#F1F5F9",
+                hover_color="#E2E8F0",
+                text_color="#334155",
+                border_width=1,
+                border_color="#CBD5E1",
+                corner_radius=8,
+                command=_toggle_conf_pwd,
+            )
+            conf_eye_btn.pack(side="right")
 
             # Submit Button
             self.submit_btn = ctk.CTkButton(

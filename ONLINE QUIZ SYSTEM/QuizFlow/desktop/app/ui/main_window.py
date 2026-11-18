@@ -22,6 +22,7 @@ from app.ui.admin_results_view import AdminResultsView
 from app.ui.organizer_dashboard_view import OrganizerDashboardView, CreateOrEditQuizDialog
 from app.ui.organizer_quizzes_view import OrganizerQuizzesView
 from app.ui.organizer_results_view import OrganizerResultsView
+from app.ui.question_bank_view import QuestionBankView
 
 
 class NotificationsDialog(ctk.CTkToplevel):
@@ -210,6 +211,254 @@ class SystemSettingsDialog(ctk.CTkToplevel):
         self.destroy()
 
 
+class TeacherProfileDialog(ctk.CTkToplevel):
+    """Modern Profile & Account Management Dialog for Teachers & Organizers."""
+    def __init__(self, master, user_data: dict, on_updated=None):
+        super().__init__(master)
+        self.master = master
+        self.user_data = dict(user_data or {})
+        self.on_updated = on_updated
+        self.title("My Profile — Teacher Account")
+        self.geometry("500x640")
+        self.configure(fg_color=Theme.BG_MAIN)
+        self.grab_set()
+
+        # Center on master
+        x = master.winfo_x() + (master.winfo_width() - 500) // 2
+        y = master.winfo_y() + (master.winfo_height() - 640) // 2
+        self.geometry(f"+{max(0, x)}+{max(0, y)}")
+
+        self._build_ui()
+
+    def _build_ui(self):
+        container = ctk.CTkFrame(self, fg_color=Theme.BG_CARD, corner_radius=12, border_width=1, border_color=Theme.BORDER_COLOR)
+        container.pack(fill="both", expand=True, padx=16, pady=16)
+
+        scroll = ctk.CTkScrollableFrame(container, fg_color="transparent")
+        scroll.pack(fill="both", expand=True, padx=12, pady=12)
+
+        # 1. Header Banner with Avatar
+        header_card = ctk.CTkFrame(scroll, fg_color=Theme.BG_MAIN, corner_radius=10, border_width=1, border_color=Theme.BORDER_COLOR)
+        header_card.pack(fill="x", pady=(0, 16), padx=4)
+
+        h_inner = ctk.CTkFrame(header_card, fg_color="transparent")
+        h_inner.pack(fill="x", padx=16, pady=14)
+
+        u_name = self.user_data.get("full_name", "Teacher")
+        initial = u_name[0].upper() if u_name else "T"
+
+        self.avatar_pill = ctk.CTkLabel(
+            h_inner,
+            text=f" {initial} ",
+            font=("Segoe UI", 16, "bold"),
+            fg_color=Theme.PRIMARY,
+            text_color="#FFFFFF",
+            corner_radius=20,
+            width=42,
+            height=42,
+        )
+        self.avatar_pill.pack(side="left", padx=(0, 12))
+
+        meta_box = ctk.CTkFrame(h_inner, fg_color="transparent")
+        meta_box.pack(side="left", fill="x", expand=True)
+
+        self.name_badge = ctk.CTkLabel(
+            meta_box,
+            text=u_name,
+            font=Theme.FONT_HEADING,
+            text_color=Theme.TEXT_MAIN,
+            anchor="w",
+        )
+        self.name_badge.pack(anchor="w")
+
+        role_str = self.user_data.get("role", "organizer").upper()
+        if role_str == "ORGANIZER":
+            role_str = "TEACHER / QUIZ ORGANIZER"
+
+        ctk.CTkLabel(
+            meta_box,
+            text=f"Role: {role_str} • Active Account",
+            font=Theme.FONT_SMALL,
+            text_color=Theme.COLOR_TEACHERS,
+            anchor="w",
+        ).pack(anchor="w")
+
+        # 2. Account Details Section
+        ctk.CTkLabel(scroll, text="Account Details", font=Theme.FONT_BODY_BOLD, text_color=Theme.TEXT_MAIN, anchor="w").pack(fill="x", padx=4, pady=(0, 6))
+
+        # Email (Read-Only)
+        ctk.CTkLabel(scroll, text="Email Address (Login ID)", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, anchor="w").pack(fill="x", padx=4, pady=(2, 2))
+        email_field = ctk.CTkEntry(
+            scroll,
+            placeholder_text=self.user_data.get("email", ""),
+            fg_color=Theme.BG_INPUT,
+            border_color=Theme.BORDER_COLOR,
+            font=Theme.FONT_BODY,
+            height=36,
+        )
+        email_field.insert(0, self.user_data.get("email", ""))
+        email_field.configure(state="disabled")
+        email_field.pack(fill="x", padx=4, pady=(0, 12))
+
+        # Full Name (Editable)
+        ctk.CTkLabel(scroll, text="Full Name *", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, anchor="w").pack(fill="x", padx=4, pady=(0, 2))
+        self.name_entry = ctk.CTkEntry(
+            scroll,
+            placeholder_text="Enter your full name",
+            fg_color=Theme.BG_INPUT,
+            border_color=Theme.BORDER_COLOR,
+            font=Theme.FONT_BODY,
+            height=36,
+        )
+        self.name_entry.insert(0, u_name)
+        self.name_entry.pack(fill="x", padx=4, pady=(0, 18))
+
+        # 3. Security / Change Password Section
+        sec_card = ctk.CTkFrame(scroll, fg_color=Theme.BG_MAIN, corner_radius=8, border_width=1, border_color=Theme.BORDER_COLOR)
+        sec_card.pack(fill="x", padx=4, pady=(0, 14))
+
+        sec_inner = ctk.CTkFrame(sec_card, fg_color="transparent")
+        sec_inner.pack(fill="x", padx=14, pady=12)
+
+        ctk.CTkLabel(sec_inner, text="🔑 Change Password (Optional)", font=Theme.FONT_BODY_BOLD, text_color=Theme.TEXT_MAIN, anchor="w").pack(fill="x", pady=(0, 4))
+        ctk.CTkLabel(sec_inner, text="Leave blank if you do not want to change your password.", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, anchor="w").pack(fill="x", pady=(0, 10))
+
+        # Current Password
+        ctk.CTkLabel(sec_inner, text="Current Password", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, anchor="w").pack(fill="x", pady=(2, 2))
+        curr_box = ctk.CTkFrame(sec_inner, fg_color="transparent")
+        curr_box.pack(fill="x", pady=(0, 8))
+
+        self.curr_pwd_entry = ctk.CTkEntry(curr_box, placeholder_text="Enter current password", show="*", fg_color=Theme.BG_CARD, border_color=Theme.BORDER_COLOR, height=36)
+        self.curr_pwd_entry.pack(side="left", fill="x", expand=True, padx=(0, 6))
+
+        curr_vis = [False]
+        def _toggle_curr():
+            curr_vis[0] = not curr_vis[0]
+            self.curr_pwd_entry.configure(show="" if curr_vis[0] else "*")
+            btn_curr_eye.configure(text="🔒" if curr_vis[0] else "👁️")
+
+        btn_curr_eye = ctk.CTkButton(curr_box, text="👁️", width=38, height=36, fg_color=Theme.BG_INPUT, text_color=Theme.TEXT_MAIN, command=_toggle_curr)
+        btn_curr_eye.pack(side="right")
+
+        # New Password
+        ctk.CTkLabel(sec_inner, text="New Password", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, anchor="w").pack(fill="x", pady=(2, 2))
+        new_box = ctk.CTkFrame(sec_inner, fg_color="transparent")
+        new_box.pack(fill="x", pady=(0, 8))
+
+        self.new_pwd_entry = ctk.CTkEntry(new_box, placeholder_text="At least 6 characters", show="*", fg_color=Theme.BG_CARD, border_color=Theme.BORDER_COLOR, height=36)
+        self.new_pwd_entry.pack(side="left", fill="x", expand=True, padx=(0, 6))
+
+        new_vis = [False]
+        def _toggle_new():
+            new_vis[0] = not new_vis[0]
+            self.new_pwd_entry.configure(show="" if new_vis[0] else "*")
+            btn_new_eye.configure(text="🔒" if new_vis[0] else "👁️")
+
+        btn_new_eye = ctk.CTkButton(new_box, text="👁️", width=38, height=36, fg_color=Theme.BG_INPUT, text_color=Theme.TEXT_MAIN, command=_toggle_new)
+        btn_new_eye.pack(side="right")
+
+        # Confirm New Password
+        ctk.CTkLabel(sec_inner, text="Confirm New Password", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, anchor="w").pack(fill="x", pady=(2, 2))
+        conf_box = ctk.CTkFrame(sec_inner, fg_color="transparent")
+        conf_box.pack(fill="x", pady=(0, 4))
+
+        self.conf_pwd_entry = ctk.CTkEntry(conf_box, placeholder_text="Repeat new password", show="*", fg_color=Theme.BG_CARD, border_color=Theme.BORDER_COLOR, height=36)
+        self.conf_pwd_entry.pack(side="left", fill="x", expand=True, padx=(0, 6))
+
+        conf_vis = [False]
+        def _toggle_conf():
+            conf_vis[0] = not conf_vis[0]
+            self.conf_pwd_entry.configure(show="" if conf_vis[0] else "*")
+            btn_conf_eye.configure(text="🔒" if conf_vis[0] else "👁️")
+
+        btn_conf_eye = ctk.CTkButton(conf_box, text="👁️", width=38, height=36, fg_color=Theme.BG_INPUT, text_color=Theme.TEXT_MAIN, command=_toggle_conf)
+        btn_conf_eye.pack(side="right")
+
+        # 4. Status / Error Banner
+        self.status_lbl = ctk.CTkLabel(scroll, text="", font=Theme.FONT_SMALL, text_color=Theme.DANGER, wraplength=440)
+        self.status_lbl.pack(fill="x", padx=4, pady=(4, 8))
+
+        # 5. Buttons Row
+        btn_box = ctk.CTkFrame(container, fg_color="transparent")
+        btn_box.pack(fill="x", padx=12, pady=(8, 12))
+
+        ctk.CTkButton(
+            btn_box,
+            text="✕ Close",
+            font=Theme.FONT_BODY,
+            fg_color=Theme.BG_INPUT,
+            hover_color=Theme.BORDER_COLOR,
+            text_color=Theme.TEXT_MAIN,
+            border_width=1,
+            border_color=Theme.BORDER_COLOR,
+            height=38,
+            corner_radius=8,
+            command=self.destroy,
+        ).pack(side="left", fill="x", expand=True, padx=(0, 6))
+
+        self.btn_save = ctk.CTkButton(
+            btn_box,
+            text="💾 Save Profile",
+            font=Theme.FONT_BODY_BOLD,
+            fg_color=Theme.PRIMARY,
+            hover_color=Theme.PRIMARY_HOVER,
+            text_color="#FFFFFF",
+            height=38,
+            corner_radius=8,
+            command=self._handle_save,
+        )
+        self.btn_save.pack(side="right", fill="x", expand=True, padx=(6, 0))
+
+    def _handle_save(self):
+        new_name = self.name_entry.get().strip()
+        curr_pwd = self.curr_pwd_entry.get().strip()
+        new_pwd = self.new_pwd_entry.get().strip()
+        conf_pwd = self.conf_pwd_entry.get().strip()
+
+        if not new_name or len(new_name) < 2:
+            self.status_lbl.configure(text="Full Name must be at least 2 characters.", text_color=Theme.DANGER)
+            return
+
+        payload = {"full_name": new_name}
+
+        if new_pwd:
+            if not curr_pwd:
+                self.status_lbl.configure(text="Please enter your current password to change password.", text_color=Theme.DANGER)
+                return
+            if len(new_pwd) < 6:
+                self.status_lbl.configure(text="New password must be at least 6 characters long.", text_color=Theme.DANGER)
+                return
+            if new_pwd != conf_pwd:
+                self.status_lbl.configure(text="New password and confirm password do not match.", text_color=Theme.DANGER)
+                return
+            payload["current_password"] = curr_pwd
+            payload["new_password"] = new_pwd
+            payload["confirm_new_password"] = conf_pwd
+
+        self.btn_save.configure(state="disabled", text="Saving...")
+        self.status_lbl.configure(text="")
+        self.update_idletasks()
+
+        ok, res = api_client.update_profile(payload)
+        self.btn_save.configure(state="normal", text="💾 Save Profile")
+
+        if ok:
+            self.status_lbl.configure(text="✓ Profile updated successfully!", text_color=Theme.SUCCESS)
+            self.user_data.update(res)
+            initial = new_name[0].upper()
+            self.avatar_pill.configure(text=f" {initial} ")
+            self.name_badge.configure(text=new_name)
+            # Clear password fields
+            self.curr_pwd_entry.delete(0, "end")
+            self.new_pwd_entry.delete(0, "end")
+            self.conf_pwd_entry.delete(0, "end")
+            if self.on_updated:
+                self.on_updated(self.user_data)
+        else:
+            err_msg = str(res)
+            self.status_lbl.configure(text=f"Error: {err_msg}", text_color=Theme.DANGER)
+
+
 class MainWindow(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -218,16 +467,22 @@ class MainWindow(ctk.CTk):
 
         self.title("QuizFlow — Online Assessment & Examination Platform")
 
-        # Responsive display sizing & auto-centering
+        # Responsive display sizing & auto-centering (fits all devices & laptop resolutions)
         screen_w = self.winfo_screenwidth()
         screen_h = self.winfo_screenheight()
-        target_w = min(1280, max(1000, int(screen_w * 0.90)))
-        target_h = min(820, max(640, int(screen_h * 0.88)))
+        target_w = min(1280, max(760, int(screen_w * 0.90)))
+        if target_w > screen_w - 40 and screen_w > 400:
+            target_w = screen_w - 40
+        target_h = min(820, max(500, int(screen_h * 0.88)))
+        if target_h > screen_h - 60 and screen_h > 400:
+            target_h = screen_h - 60
         x_pos = max(0, (screen_w - target_w) // 2)
-        y_pos = max(0, (screen_h - target_h) // 3)
+        y_pos = max(0, (screen_h - target_h) // 4)
 
         self.geometry(f"{target_w}x{target_h}+{x_pos}+{y_pos}")
-        self.minsize(980, 600)
+        min_w = min(740, max(400, screen_w - 40))
+        min_h = min(480, max(360, screen_h - 60))
+        self.minsize(min_w, min_h)
         self.configure(fg_color=Theme.BG_MAIN)
 
         self.current_user = None
@@ -352,11 +607,25 @@ class MainWindow(ctk.CTk):
 
         # Operational status pill: ● All Systems Operational
         status_frame = ctk.CTkFrame(bottom_box, fg_color="#1E293B", corner_radius=6)
-        status_frame.pack(fill="x", pady=(0, 12))
+        status_frame.pack(fill="x", pady=(0, 10))
         s_inner = ctk.CTkFrame(status_frame, fg_color="transparent")
         s_inner.pack(padx=10, pady=6)
         ctk.CTkLabel(s_inner, text="●", font=("Segoe UI", 10), text_color="#10B981").pack(side="left", padx=(0, 6))
         ctk.CTkLabel(s_inner, text="All Systems Operational", font=("Segoe UI", 8, "bold"), text_color=Theme.SIDEBAR_TEXT).pack(side="left")
+
+        # My Profile Button (Just above Sign Out)
+        ctk.CTkButton(
+            bottom_box,
+            text="👤  My Profile",
+            font=Theme.FONT_BODY,
+            anchor="w",
+            fg_color="transparent",
+            hover_color=Theme.SIDEBAR_HOVER,
+            text_color="#F8FAFC",
+            height=36,
+            corner_radius=8,
+            command=self._open_my_profile,
+        ).pack(fill="x", pady=(0, 4))
 
         # Sign Out Button
         ctk.CTkButton(
@@ -435,7 +704,7 @@ class MainWindow(ctk.CTk):
         user_name = self.current_user.get("full_name", "User") if self.current_user else "User"
         initial = user_name[0].upper() if user_name else "U"
 
-        ctk.CTkLabel(
+        self.lbl_user_avatar = ctk.CTkLabel(
             right_box,
             text=f" {initial} ",
             font=("Segoe UI", 11, "bold"),
@@ -444,31 +713,54 @@ class MainWindow(ctk.CTk):
             corner_radius=14,
             width=30,
             height=30,
-        ).pack(side="left", padx=(0, 8))
+        )
+        self.lbl_user_avatar.pack(side="left", padx=(0, 8))
 
-        # User Name + Role Tag
-        u_info = ctk.CTkFrame(right_box, fg_color="transparent")
+        # User Name + Role Tag (Clickable to view/edit profile)
+        u_info = ctk.CTkFrame(right_box, fg_color="transparent", cursor="hand2")
         u_info.pack(side="left")
 
-        ctk.CTkLabel(
+        self.lbl_user_name = ctk.CTkLabel(
             u_info,
             text=user_name,
             font=Theme.FONT_BODY_BOLD,
             text_color=Theme.TEXT_MAIN,
             anchor="w",
-        ).pack(anchor="w")
+            cursor="hand2",
+        )
+        self.lbl_user_name.pack(anchor="w")
 
-        ctk.CTkLabel(
+        self.lbl_user_role = ctk.CTkLabel(
             u_info,
             text=role_badge_text,
             font=("Segoe UI", 8),
             text_color=Theme.TEXT_MUTED,
             anchor="w",
-        ).pack(anchor="w")
+            cursor="hand2",
+        )
+        self.lbl_user_role.pack(anchor="w")
+
+        # Bind click to open profile
+        self.lbl_user_avatar.bind("<Button-1>", lambda _: self._open_my_profile())
+        self.lbl_user_name.bind("<Button-1>", lambda _: self._open_my_profile())
+        self.lbl_user_role.bind("<Button-1>", lambda _: self._open_my_profile())
+        u_info.bind("<Button-1>", lambda _: self._open_my_profile())
 
         # 3. Main Content Frame
         self.content_frame = ctk.CTkFrame(main_col, fg_color=Theme.BG_MAIN, corner_radius=0)
         self.content_frame.grid(row=1, column=0, sticky="nsew")
+
+    def _open_my_profile(self):
+        TeacherProfileDialog(self, user_data=self.current_user, on_updated=self._on_profile_updated)
+
+    def _on_profile_updated(self, updated_user):
+        self.current_user = updated_user
+        new_name = updated_user.get("full_name", "User")
+        initial = new_name[0].upper() if new_name else "U"
+        if hasattr(self, "lbl_user_name") and self.lbl_user_name.winfo_exists():
+            self.lbl_user_name.configure(text=new_name)
+        if hasattr(self, "lbl_user_avatar") and self.lbl_user_avatar.winfo_exists():
+            self.lbl_user_avatar.configure(text=f" {initial} ")
 
     def _open_notifications(self):
         NotificationsDialog(self, on_clear_badge=self._clear_notification_badge)
@@ -614,6 +906,7 @@ class MainWindow(ctk.CTk):
         org_items = [
             ("dashboard", "📊  Teacher Dashboard"),
             ("quizzes", "📝  My Quizzes"),
+            ("banks", "📚  Question Bank"),
             ("results", "📈  Student Submissions"),
             ("create", "➕  Create New Quiz"),
         ]
@@ -622,7 +915,7 @@ class MainWindow(ctk.CTk):
 
         self.navigate_organizer("dashboard")
 
-    def navigate_organizer(self, view_key: str):
+    def navigate_organizer(self, view_key: str, target_quiz_id: Optional[int] = None):
         if view_key == "create":
             CreateOrEditQuizDialog(self, on_success=lambda: self.navigate_organizer("quizzes"))
             return
@@ -654,9 +947,12 @@ class MainWindow(ctk.CTk):
             self.current_view = OrganizerQuizzesView(
                 self.content_frame,
                 on_manage_questions=self.show_organizer_questions,
+                on_view_results=lambda q_id: self.navigate_organizer("results", target_quiz_id=q_id),
             )
+        elif view_key == "banks":
+            self.current_view = QuestionBankView(self.content_frame)
         elif view_key == "results":
-            self.current_view = OrganizerResultsView(self.content_frame)
+            self.current_view = OrganizerResultsView(self.content_frame, initial_quiz_id=target_quiz_id)
 
     def show_organizer_questions(self, quiz_dict):
         for w in self.content_frame.winfo_children():

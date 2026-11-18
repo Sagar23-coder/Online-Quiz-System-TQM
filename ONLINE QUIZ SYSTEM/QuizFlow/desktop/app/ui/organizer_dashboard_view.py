@@ -11,6 +11,7 @@ from app.utils.theme import Theme
 from app.components.stat_card import StatCard
 from app.components.visual_charts import CircularProgress, MiniSparkline, PerformanceDoubleBarChart
 from app.services.api_client import api_client
+from app.services.document_extractor import DocumentExtractor
 
 
 class CreateOrEditQuizDialog(ctk.CTkToplevel):
@@ -44,26 +45,7 @@ class CreateOrEditQuizDialog(ctk.CTkToplevel):
         title_text = "Edit Quiz Configuration" if self.is_edit else "Create New Assessment Quiz"
         ctk.CTkLabel(self.container, text=title_text, font=Theme.FONT_HEADING, text_color=Theme.TEXT_MAIN).pack(pady=(12, 6))
 
-        if not self.is_edit:
-            # Creation Mode Selector
-            mode_box = ctk.CTkFrame(self.container, fg_color=Theme.BG_MAIN, corner_radius=10, border_width=1, border_color=Theme.BORDER_COLOR)
-            mode_box.pack(fill="x", padx=16, pady=(4, 14))
-
-            ctk.CTkLabel(mode_box, text="Creation Method:", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, anchor="w").pack(fill="x", padx=12, pady=(8, 2))
-            self.mode_toggle = ctk.CTkSegmentedButton(
-                mode_box,
-                values=["✍️ Manual Setup", "🤖 Generate with AI", "📁 Import from File"],
-                command=self._on_mode_change,
-                selected_color=Theme.PRIMARY,
-                unselected_color=Theme.BG_CARD,
-                text_color=Theme.TEXT_MAIN,
-                font=Theme.FONT_SMALL,
-                height=34,
-            )
-            self.mode_toggle.set("✍️ Manual Setup")
-            self.mode_toggle.pack(fill="x", padx=12, pady=(0, 10))
-
-        # Dynamic Content Frame for selected mode
+        # Content Frame
         self.content_subframe = ctk.CTkFrame(self.container, fg_color="transparent")
         self.content_subframe.pack(fill="both", expand=True)
 
@@ -131,28 +113,20 @@ class CreateOrEditQuizDialog(ctk.CTkToplevel):
         self.attempts_entry.insert(0, str(self.quiz_data.get("max_attempts", 1)) if self.quiz_data else "1")
         self.attempts_entry.pack(fill="x", padx=16, pady=(0, 14))
 
-        # Access Control: Private (Code-Only) vs Public
+        # Public Access Link Banner
         access_box = ctk.CTkFrame(sub, fg_color=Theme.BG_MAIN, corner_radius=10, border_width=1, border_color=Theme.BORDER_COLOR)
         access_box.pack(fill="x", padx=16, pady=(0, 12))
 
-        ctk.CTkLabel(access_box, text="Quiz Audience & Access Control *", font=Theme.FONT_BODY_BOLD, text_color=Theme.TEXT_MAIN, anchor="w").pack(fill="x", padx=14, pady=(10, 4))
-        is_pub = self.quiz_data.get("is_public", False) if self.quiz_data else False
-        self.access_toggle = ctk.CTkSegmentedButton(
+        ctk.CTkLabel(access_box, text="🌐 Public Link-Based Quiz (Direct Access)", font=Theme.FONT_BODY_BOLD, text_color=Theme.PRIMARY, anchor="w").pack(fill="x", padx=14, pady=(8, 2))
+        ctk.CTkLabel(
             access_box,
-            values=["🔒 Private (Code Required)", "🌐 Public (Open to All)"],
-            command=self._on_access_change,
-            selected_color=Theme.PRIMARY,
-            unselected_color=Theme.BG_CARD,
-            text_color=Theme.TEXT_MAIN,
+            text="Every assessment is public and accessible through a shareable link. Students can attend directly on any device without login or student accounts.",
             font=Theme.FONT_SMALL,
-            height=34,
-        )
-        self.access_toggle.set("🌐 Public (Open to All)" if is_pub else "🔒 Private (Code Required)")
-        self.access_toggle.pack(fill="x", padx=14, pady=(0, 6))
-
-        self.access_desc = ctk.CTkLabel(access_box, text="", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, wraplength=480, justify="left", anchor="w")
-        self.access_desc.pack(fill="x", padx=14, pady=(0, 10))
-        self._update_access_desc()
+            text_color=Theme.TEXT_MUTED,
+            wraplength=480,
+            justify="left",
+            anchor="w",
+        ).pack(fill="x", padx=14, pady=(0, 8))
 
         # Result Release Control
         release_box = ctk.CTkFrame(sub, fg_color=Theme.BG_MAIN, corner_radius=10, border_width=1, border_color=Theme.BORDER_COLOR)
@@ -261,14 +235,6 @@ class CreateOrEditQuizDialog(ctk.CTkToplevel):
         self.ai_diff_seg.set("Medium")
         self.ai_diff_seg.pack(fill="x", pady=(2, 0))
 
-        # Audience control
-        aud_row = ctk.CTkFrame(sub, fg_color="transparent")
-        aud_row.pack(fill="x", padx=16, pady=(0, 12))
-        ctk.CTkLabel(aud_row, text="Quiz Audience", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, anchor="w").pack(fill="x")
-        self.ai_access_seg = ctk.CTkSegmentedButton(aud_row, values=["🔒 Private (Code Required)", "🌐 Public (Open to All)"], height=32)
-        self.ai_access_seg.set("🔒 Private (Code Required)")
-        self.ai_access_seg.pack(fill="x", pady=(2, 0))
-
         self.ai_status_label = ctk.CTkLabel(sub, text="", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, wraplength=520)
         self.ai_status_label.pack(pady=4)
 
@@ -368,24 +334,25 @@ class CreateOrEditQuizDialog(ctk.CTkToplevel):
 
     def _pick_file(self):
         f_path = filedialog.askopenfilename(
-            title="Select Assessment File or Study Notes",
+            title="Select Assessment Document or Study Notes",
             filetypes=[
-                ("Supported Formats", "*.csv;*.json;*.txt;*.md"),
-                ("CSV Files", "*.csv"),
-                ("JSON Files", "*.json"),
-                ("Text & Notes", "*.txt;*.md"),
-                ("All Files", "*.*"),
+                ("All Supported Educational Documents", "*.pdf;*.ppt;*.pptx;*.docx;*.xlsx;*.csv;*.txt;*.md;*.json;*.png;*.jpg;*.jpeg;*.webp"),
+                ("PowerPoint Presentations (*.pptx, *.ppt)", "*.pptx;*.ppt;*.ppsx"),
+                ("PDF Documents (*.pdf)", "*.pdf"),
+                ("Word Documents (*.docx)", "*.docx;*.dotx"),
+                ("Spreadsheets (*.csv, *.xlsx)", "*.csv;*.xlsx;*.xls"),
+                ("Text & Notes (*.txt, *.md, *.json)", "*.txt;*.md;*.json"),
+                ("All Files (*.*)", "*.*"),
             ],
         )
         if f_path:
             self.imported_file_path = f_path
             filename = os.path.basename(f_path)
             try:
-                with open(f_path, "r", encoding="utf-8", errors="replace") as f:
-                    self.imported_file_content = f.read()
-                f_size = len(self.imported_file_content)
+                self.imported_file_content = DocumentExtractor.extract_text_from_file(f_path)
+                char_count = len(self.imported_file_content.strip())
                 self.file_status_label.configure(
-                    text=f"✓ {filename} ({round(f_size/1024, 1)} KB loaded)",
+                    text=f"✓ {filename} ({char_count} chars extracted)",
                     text_color=Theme.SUCCESS,
                 )
             except Exception as e:
@@ -428,7 +395,7 @@ class CreateOrEditQuizDialog(ctk.CTkToplevel):
             code = res.get("join_code", "N/A")
             messagebox.showinfo(
                 "Assessment Created Successfully",
-                f"Quiz created from file!\n\nTitle: {title}\nQuestions: {q_cnt}\nJoin Code: {code}\n\nSaved to your workspace as a draft. Click 'Publish' when ready for students.",
+                f"Quiz created from file!\n\nTitle: {title}\nQuestions: {q_cnt}\n\nSaved to your workspace as a draft. Click 'Publish' to generate its public shareable link.",
             )
             self.destroy()
             if self.on_success:
@@ -445,7 +412,7 @@ class CreateOrEditQuizDialog(ctk.CTkToplevel):
         cnt_str = self.ai_count_seg.get().split()[0]
         num_q = int(cnt_str)
         diff = self.ai_diff_seg.get().lower()
-        is_pub = "Public" in self.ai_access_seg.get()
+        is_pub = True
 
         self.ai_gen_btn.configure(state="disabled", text="Synthesizing assessment questions with AI...")
         self.ai_status_label.configure(text="Formulating pedagogy, multiple-choice distractors, and explanations...", text_color=Theme.PRIMARY)
@@ -532,7 +499,7 @@ class CreateOrEditQuizDialog(ctk.CTkToplevel):
             code = res.get("join_code", "N/A")
             messagebox.showinfo(
                 "Assessment Created Successfully",
-                f"Assessment '{title}' created!\n\nQuestions Added: {q_cnt}\nJoin Code: {code}\n\nSaved to your organizer workspace as a draft. Click 'Publish' whenever you are ready for students to take it.",
+                f"Assessment '{title}' created!\n\nQuestions Added: {q_cnt}\n\nSaved to your workspace as a draft. Click 'Publish' to generate its public shareable link.",
             )
             self.destroy()
             if self.on_success:
@@ -592,7 +559,7 @@ class CreateOrEditQuizDialog(ctk.CTkToplevel):
             self.error_label.configure(text="Duration, passing %, and max attempts must be integers.")
             return
 
-        is_public_flag = "Public" in self.access_toggle.get()
+        is_public_flag = True
         release_imm = "Immediate" in self.release_toggle.get()
 
         payload = {
@@ -652,7 +619,7 @@ class QuizReportDialog(ctk.CTkToplevel):
         ctk.CTkLabel(t_box, text=self.quiz["title"], font=Theme.FONT_HEADING, text_color=Theme.TEXT_MAIN).pack(anchor="w")
         ctk.CTkLabel(
             t_box,
-            text=f"Join Code: {self.quiz.get('join_code', 'N/A')} • Passing Threshold: {self.quiz['passing_percentage']}% • Subject: {self.quiz.get('subject', 'General')}",
+            text=f"Passing Threshold: {self.quiz['passing_percentage']}% • Subject: {self.quiz.get('subject', 'General')} • Link-Based Assessment",
             font=Theme.FONT_SMALL,
             text_color=Theme.TEXT_MUTED,
         ).pack(anchor="w")
@@ -1609,51 +1576,6 @@ class OrganizerDashboardView(ctk.CTkFrame):
 
         ctk.CTkLabel(top_row, text=q["title"], font=Theme.FONT_HEADING, text_color=Theme.TEXT_MAIN, anchor="w").pack(side="left")
 
-        # Join Code Pill + 1-Click Copy
-        join_code = q.get("join_code", "N/A")
-        code_box = ctk.CTkFrame(top_row, fg_color=Theme.PRIMARY_LIGHT, corner_radius=6)
-        code_box.pack(side="left", padx=(10, 6))
-
-        ctk.CTkLabel(
-            code_box,
-            text=f" 🔑 {join_code} ",
-            font=Theme.FONT_SMALL,
-            text_color=Theme.PRIMARY,
-        ).pack(side="left", padx=(4, 2))
-
-        ctk.CTkButton(
-            code_box,
-            text="📋 Copy",
-            font=Theme.FONT_SMALL,
-            fg_color=Theme.PRIMARY,
-            hover_color=Theme.PRIMARY_HOVER,
-            text_color="#FFFFFF",
-            width=50,
-            height=20,
-            corner_radius=4,
-            command=lambda c=join_code: self._copy_join_code(c),
-        ).pack(side="left", padx=(0, 4), pady=2)
-
-        # Public vs Restricted Private Badge
-        is_pub_disc = q.get("is_public", True)
-        if is_pub_disc:
-            disc_text = "🌐 PUBLIC"
-            disc_bg = Theme.BG_INPUT
-            disc_fg = Theme.TEXT_MUTED
-        else:
-            disc_text = "🔒 PRIVATE (CODE-ONLY)"
-            disc_bg = "#FEF3C7"
-            disc_fg = "#92400E"
-
-        ctk.CTkLabel(
-            top_row,
-            text=f" {disc_text} ",
-            font=Theme.FONT_SMALL,
-            text_color=disc_fg,
-            fg_color=disc_bg,
-            corner_radius=4,
-        ).pack(side="left", padx=4)
-
         # Published / Draft status
         is_pub = q.get("is_published", False)
         status_bg = Theme.SUCCESS_BG if is_pub else Theme.BG_INPUT
@@ -1667,12 +1589,10 @@ class OrganizerDashboardView(ctk.CTkFrame):
             text_color=status_fg,
             fg_color=status_bg,
             corner_radius=4,
-        ).pack(side="left", padx=4)
+        ).pack(side="left", padx=10)
 
-        # Description / Access Note
+        # Description
         desc_text = q.get("description") or "No description provided."
-        if not is_pub_disc:
-            desc_text += " • (Restricted test: only participants with join code can take it)"
         ctk.CTkLabel(left, text=desc_text, font=Theme.FONT_BODY, text_color=Theme.TEXT_MUTED, anchor="w", wraplength=480).pack(fill="x", pady=(4, 6))
 
         # Metadata row
@@ -1738,10 +1658,23 @@ class OrganizerDashboardView(ctk.CTkFrame):
             text_color="#FFFFFF",
             width=135,
             height=28,
-            command=lambda q_id=q["id"], pub=is_pub: self._toggle_publish(q_id, pub),
+            command=lambda q_obj=q, pub=is_pub: self._toggle_publish(q_obj, pub),
         ).pack(pady=(0, 4))
 
-        # 4. Delete
+        # 4. Share Quiz Link
+        ctk.CTkButton(
+            actions,
+            text="🔗 Share Link",
+            font=Theme.FONT_SMALL,
+            fg_color="#0EA5E9",
+            hover_color="#0284C7",
+            text_color="#FFFFFF",
+            width=135,
+            height=28,
+            command=lambda q_obj=q: self._open_share_dialog(q_obj),
+        ).pack(pady=(0, 4))
+
+        # 5. Delete
         ctk.CTkButton(
             actions,
             text="Delete",
@@ -1754,7 +1687,12 @@ class OrganizerDashboardView(ctk.CTkFrame):
             command=lambda q_id=q["id"]: self._delete_quiz(q_id),
         ).pack()
 
-    def _toggle_publish(self, quiz_id: int, is_currently_published: bool):
+    def _open_share_dialog(self, quiz_obj: dict):
+        from app.ui.organizer_quizzes_view import ShareQuizDialog
+        ShareQuizDialog(self, quiz_obj, on_refresh=self.load_data)
+
+    def _toggle_publish(self, quiz_obj: dict, is_currently_published: bool):
+        quiz_id = quiz_obj["id"]
         if is_currently_published:
             ok, res = api_client.unpublish_quiz(quiz_id)
         else:
@@ -1762,6 +1700,12 @@ class OrganizerDashboardView(ctk.CTkFrame):
 
         if ok:
             self.load_data()
+            if not is_currently_published:
+                # Automatically show Share Quiz popup on publish!
+                from app.ui.organizer_quizzes_view import ShareQuizDialog
+                q_updated = dict(quiz_obj)
+                q_updated["is_published"] = True
+                ShareQuizDialog(self, q_updated, on_refresh=self.load_data)
         else:
             messagebox.showerror("Error", f"Could not update quiz status: {res}")
 

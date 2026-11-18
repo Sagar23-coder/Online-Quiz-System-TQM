@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
 from app.models.user import User
-from app.schemas.user import Token, UserCreate, UserLogin, UserResponse
+from app.schemas.user import Token, UserCreate, UserLogin, UserProfileUpdate, UserResponse
 from app.services.auth_service import AuthService
 
 router = APIRouter()
@@ -51,3 +51,21 @@ def get_me(current_user: User = Depends(get_current_user)):
     Returns profile information for the currently authenticated user.
     """
     return UserResponse.model_validate(current_user)
+
+
+@router.put(
+    "/profile",
+    response_model=UserResponse,
+    summary="Update authenticated user profile or password",
+)
+def update_profile(
+    profile_in: UserProfileUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Allows teacher or admin to update their name or change password.
+    """
+    client_ip = request.client.host if request.client else None
+    return AuthService.update_user_profile(db, current_user, profile_in, ip_address=client_ip)

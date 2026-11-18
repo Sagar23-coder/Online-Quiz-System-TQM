@@ -72,6 +72,13 @@ class UserStatusUpdate(BaseModel):
     reason: Optional[str] = None
 
 
+class UserProfileUpdate(BaseModel):
+    full_name: Optional[str] = None
+    current_password: Optional[str] = None
+    new_password: Optional[str] = None
+    confirm_new_password: Optional[str] = None
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"

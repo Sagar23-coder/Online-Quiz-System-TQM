@@ -91,6 +91,9 @@ class ApiClient:
     def get_me(self) -> Tuple[bool, Any]:
         return self._request("GET", "/auth/me")
 
+    def update_profile(self, profile_data: Dict[str, Any]) -> Tuple[bool, Any]:
+        return self._request("PUT", "/auth/profile", profile_data)
+
     # Admin Operations
     def get_dashboard_stats(self) -> Tuple[bool, Any]:
         return self._request("GET", "/admin/dashboard-stats")
@@ -164,6 +167,10 @@ class ApiClient:
 
     def get_organizer_quizzes(self) -> Tuple[bool, Any]:
         return self._request("GET", "/organizer/quizzes")
+
+    def get_organizer_results(self, quiz_id: Optional[int] = None) -> Tuple[bool, Any]:
+        endpoint = f"/organizer/results?quiz_id={quiz_id}" if quiz_id is not None else "/organizer/results"
+        return self._request("GET", endpoint)
 
     def get_quiz_report(self, quiz_id: int) -> Tuple[bool, Any]:
         return self._request("GET", f"/organizer/quizzes/{quiz_id}/report")
@@ -255,6 +262,48 @@ class ApiClient:
     def toggle_share_link(self, quiz_id: int) -> Tuple[bool, Any]:
         """Activate or deactivate the share link for a quiz."""
         return self._request("POST", f"/organizer/quizzes/{quiz_id}/toggle-share-link")
+
+    # ------------------------------------------------------------------
+    # Question Bank Operations (Teacher/Organizer)
+    # ------------------------------------------------------------------
+    def get_question_banks(self) -> Tuple[bool, Any]:
+        return self._request("GET", "/question-banks")
+
+    def create_question_bank(self, bank_data: Dict[str, Any]) -> Tuple[bool, Any]:
+        return self._request("POST", "/question-banks", bank_data)
+
+    def get_question_bank_details(self, bank_id: int) -> Tuple[bool, Any]:
+        return self._request("GET", f"/question-banks/{bank_id}")
+
+    def update_question_bank(self, bank_id: int, bank_data: Dict[str, Any]) -> Tuple[bool, Any]:
+        return self._request("PUT", f"/question-banks/{bank_id}", bank_data)
+
+    def delete_question_bank(self, bank_id: int) -> Tuple[bool, Any]:
+        return self._request("DELETE", f"/question-banks/{bank_id}")
+
+    def add_question_to_bank(self, bank_id: int, item_data: Dict[str, Any]) -> Tuple[bool, Any]:
+        return self._request("POST", f"/question-banks/{bank_id}/questions", item_data)
+
+    def import_from_bank_to_quiz(self, bank_id: int, quiz_id: int, item_ids: List[int]) -> Tuple[bool, Any]:
+        return self._request("POST", f"/question-banks/{bank_id}/import-to-quiz/{quiz_id}", {"item_ids": item_ids})
+
+    # ------------------------------------------------------------------
+    # Live Assessment Host Operations (Teacher/Organizer)
+    # ------------------------------------------------------------------
+    def create_live_session(self, quiz_id: int, mode: str = "instructor_paced") -> Tuple[bool, Any]:
+        return self._request("POST", "/live/create", {"quiz_id": quiz_id, "mode": mode})
+
+    def start_live_session(self, session_pin: str) -> Tuple[bool, Any]:
+        return self._request("POST", f"/live/{session_pin}/start")
+
+    def get_live_session_state(self, session_pin: str) -> Tuple[bool, Any]:
+        return self._request("GET", f"/live/{session_pin}/state")
+
+    def next_live_question(self, session_pin: str) -> Tuple[bool, Any]:
+        return self._request("POST", f"/live/{session_pin}/next")
+
+    def end_live_session(self, session_pin: str) -> Tuple[bool, Any]:
+        return self._request("POST", f"/live/{session_pin}/end")
 
 
 # Global desktop API client singleton

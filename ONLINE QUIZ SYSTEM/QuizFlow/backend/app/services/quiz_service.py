@@ -18,6 +18,7 @@ from app.models.attempt_answer import AttemptAnswer
 from app.models.question import Question
 from app.models.quiz import Quiz
 from app.models.user import User
+from app.schemas.admin import ResultListItem
 from app.schemas.question import QuestionAdminResponse, QuestionCreate, QuestionUpdate
 from app.schemas.quiz import (
     OrganizerDashboardStats,
@@ -469,6 +470,59 @@ class QuizService:
         )
 
     @staticmethod
+    def get_organizer_results(db: Session, organizer_id: int, quiz_id: Optional[int] = None) -> List[ResultListItem]:
+        """Return student attempt results ONLY for quizzes owned by this organizer, optionally filtered by quiz_id."""
+        quizzes = db.query(Quiz).filter(Quiz.created_by_id == organizer_id).all()
+        quiz_map = {q.id: q.title for q in quizzes}
+        if not quiz_map:
+            return []
+
+        if quiz_id is not None:
+            if quiz_id not in quiz_map:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access denied to another teacher's quiz results.",
+                )
+            target_ids = [quiz_id]
+        else:
+            target_ids = list(quiz_map.keys())
+
+        attempts = (
+            db.query(QuizAttempt)
+            .filter(QuizAttempt.quiz_id.in_(target_ids))
+            .order_by(QuizAttempt.created_at.desc())
+            .all()
+        )
+
+        results: List[ResultListItem] = []
+        for a in attempts:
+            student = db.query(User).filter(User.id == a.student_id).first() if a.student_id else None
+            student_name = a.participant_name or (student.full_name if student else "Public Student")
+            student_email = a.participant_email or (student.email if student else "N/A")
+            results.append(
+                ResultListItem(
+                    attempt_id=a.id,
+                    student_id=a.student_id,
+                    student_name=student_name,
+                    student_email=student_email,
+                    student_class=a.participant_class,
+                    student_section=a.participant_section,
+                    student_phone=a.participant_phone,
+                    quiz_id=a.quiz_id,
+                    quiz_title=quiz_map.get(a.quiz_id, "Quiz"),
+                    status=a.status,
+                    score_obtained=a.score_obtained,
+                    total_marks=a.total_marks,
+                    percentage=a.percentage,
+                    is_passed=a.is_passed,
+                    start_time=a.start_time,
+                    end_time=a.end_time,
+                    submitted_at=a.end_time or a.created_at,
+                )
+            )
+        return results
+
+    @staticmethod
     def get_student_quizzes(db: Session, student_id: Optional[int] = None) -> List[QuizStudentResponse]:
         """Return public published, non-disabled quizzes for participant browsing."""
         quizzes = (
@@ -913,7 +967,15 @@ class QuizService:
         )
 
     @staticmethod
-    def get_quiz_questions_admin(db: Session, quiz_id: int) -> List[QuestionAdminResponse]:
+    def get_quiz_questions_admin(
+        db: Session, quiz_id: int, user_id: Optional[int] = None, is_admin: bool = False
+    ) -> List[QuestionAdminResponse]:
+        quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()
+        if not quiz:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
+        if not is_admin and user_id is not None and quiz.created_by_id != user_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: quiz owned by another instructor.")
+
         questions = (
             db.query(Question)
             .filter(Question.quiz_id == quiz_id)

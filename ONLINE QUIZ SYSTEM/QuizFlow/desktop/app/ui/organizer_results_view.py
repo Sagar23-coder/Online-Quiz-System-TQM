@@ -12,9 +12,11 @@ from app.services.api_client import api_client
 
 
 class OrganizerResultsView(ctk.CTkFrame):
-    def __init__(self, master):
+    def __init__(self, master, initial_quiz_id=None):
         super().__init__(master, fg_color=Theme.BG_MAIN)
         self.submissions = []
+        self.quizzes = []
+        self.selected_quiz_id = initial_quiz_id
         self.status_filter = "All"
         self.search_query = ""
 
@@ -24,7 +26,7 @@ class OrganizerResultsView(ctk.CTkFrame):
         self.scroll.pack(fill="both", expand=True, padx=24, pady=16)
 
         self._build_ui()
-        self.load_data()
+        self.load_quizzes_and_data()
 
     def _build_ui(self):
         # 1. Header Row
@@ -89,7 +91,7 @@ class OrganizerResultsView(ctk.CTkFrame):
         self.c_fail = self._create_card(self.summary_row, 2, "Failed Submissions", "0", "Below threshold", Theme.DANGER)
         self.c_avg = self._create_card(self.summary_row, 3, "Average Score", "0%", "Class average accuracy", Theme.COLOR_STUDENTS)
 
-        # 3. Filter & Search Bar
+        # Filter & Search Bar
         filter_card = ctk.CTkFrame(
             self.scroll,
             fg_color=Theme.BG_CARD,
@@ -104,11 +106,11 @@ class OrganizerResultsView(ctk.CTkFrame):
 
         # Search Entry
         search_box = ctk.CTkFrame(fc_inner, fg_color=Theme.BG_INPUT, corner_radius=8, border_width=1, border_color=Theme.BORDER_COLOR)
-        search_box.pack(side="left", fill="x", expand=True, padx=(0, 12))
+        search_box.pack(side="left", fill="x", expand=True, padx=(0, 10))
 
         self.search_entry = ctk.CTkEntry(
             search_box,
-            placeholder_text="🔍 Search submissions by student name or quiz title...",
+            placeholder_text="🔍 Search submissions by student name or roll...",
             font=Theme.FONT_BODY,
             fg_color="transparent",
             border_width=0,
@@ -116,6 +118,22 @@ class OrganizerResultsView(ctk.CTkFrame):
         )
         self.search_entry.pack(fill="x", padx=8)
         self.search_entry.bind("<KeyRelease>", self._on_search_key)
+
+        # Quiz Dropdown Filter
+        self.quiz_menu_var = ctk.StringVar(value="All Quizzes")
+        self.quiz_menu = ctk.CTkOptionMenu(
+            fc_inner,
+            variable=self.quiz_menu_var,
+            values=["All Quizzes"],
+            command=self._on_quiz_menu_change,
+            fg_color=Theme.BG_INPUT,
+            button_color=Theme.PRIMARY,
+            text_color=Theme.TEXT_MAIN,
+            font=Theme.FONT_SMALL,
+            height=34,
+            width=180,
+        )
+        self.quiz_menu.pack(side="left", padx=(0, 10))
 
         # Status Tabs
         self.status_seg = ctk.CTkSegmentedButton(
@@ -180,13 +198,61 @@ class OrganizerResultsView(ctk.CTkFrame):
         self.search_query = self.search_entry.get().strip().lower()
         self._filter_and_render()
 
+    def on_search(self, query: str):
+        self.search_query = query.strip().lower()
+        if hasattr(self, "search_entry") and self.search_entry.winfo_exists():
+            self.search_entry.delete(0, "end")
+            self.search_entry.insert(0, query)
+        self._filter_and_render()
+
     def _on_status_change(self, value):
         self.status_filter = value
         self._filter_and_render()
 
+    def _on_quiz_menu_change(self, choice):
+        if choice == "All Quizzes":
+            self.selected_quiz_id = None
+        else:
+            self.selected_quiz_id = self.quiz_title_to_id.get(choice)
+        self.load_data()
+
+    def load_quizzes_and_data(self):
+        ok, res = api_client.get_organizer_quizzes()
+        self.quizzes = res if (ok and isinstance(res, list)) else []
+        self.quiz_title_to_id = {q["title"]: q["id"] for q in self.quizzes}
+
+        menu_values = ["All Quizzes"] + [q["title"] for q in self.quizzes]
+        self.quiz_menu.configure(values=menu_values)
+
+        if self.selected_quiz_id:
+            for q in self.quizzes:
+                if q["id"] == self.selected_quiz_id:
+                    self.quiz_menu_var.set(q["title"])
+                    break
+
+        self.load_data()
+
     def load_data(self):
-        ok, res = api_client.get_all_results()
-        self.submissions = res if (ok and res) else []
+        ok, res = api_client.get_organizer_results(quiz_id=self.selected_quiz_id)
+        if not ok:
+            self.submissions = []
+            self.c_tot.configure(text="0")
+            self.c_pass.configure(text="0")
+            self.c_fail.configure(text="0")
+            self.c_avg.configure(text="0%")
+            for w in self.table_body.winfo_children():
+                w.destroy()
+            err_box = ctk.CTkFrame(self.table_body, fg_color=Theme.DANGER_LIGHT, corner_radius=8)
+            err_box.pack(fill="x", padx=16, pady=20)
+            ctk.CTkLabel(
+                err_box,
+                text=f"⚠️ Unable to load submissions: {res}\nPlease ensure the backend is running and try again.",
+                font=Theme.FONT_BODY,
+                text_color=Theme.DANGER,
+            ).pack(padx=16, pady=12)
+            return
+
+        self.submissions = res if isinstance(res, list) else []
 
         tot = len(self.submissions)
         passed = sum(1 for s in self.submissions if s.get("is_passed", False))
@@ -288,9 +354,16 @@ class OrganizerResultsView(ctk.CTkFrame):
             ).grid(row=0, column=5, padx=12, pady=10, sticky="w")
 
             # Submitted At
-            d_str = str(s.get("submitted_at", "Recent"))
-            if "T" in d_str:
-                d_str = d_str.split("T")[0]
+            raw_d = s.get("submitted_at") or s.get("end_time") or s.get("start_time") or ""
+            d_str = "Recent"
+            if raw_d:
+                try:
+                    clean_d = str(raw_d).replace("T", " ")
+                    if "." in clean_d:
+                        clean_d = clean_d.split(".")[0]
+                    d_str = clean_d
+                except Exception:
+                    d_str = str(raw_d)[:16]
             ctk.CTkLabel(row, text=d_str, font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, anchor="w").grid(row=0, column=6, padx=12, pady=10, sticky="w")
 
     def _export_csv(self):

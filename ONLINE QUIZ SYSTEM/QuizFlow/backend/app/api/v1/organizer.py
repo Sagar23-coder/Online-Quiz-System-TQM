@@ -2,13 +2,14 @@
 Organizer (Teacher) Workspace Endpoints.
 Provides personal dashboard statistics, quiz management, participant grading, and CSV export.
 """
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_organizer, get_db
 from app.models.user import User, UserRole
+from app.schemas.admin import ResultListItem
 from app.schemas.quiz import (
     AIGeneratedQuizResponse,
     AIGenerateQuizRequest,
@@ -53,6 +54,23 @@ def get_my_quizzes(
     Returns quizzes created by this teacher with participant count and draft/published status.
     """
     return QuizService.get_organizer_quizzes(db, organizer_id=current_organizer.id)
+
+
+@router.get(
+    "/results",
+    response_model=List[ResultListItem],
+    summary="List all student submissions for quizzes owned by the logged-in organizer",
+)
+def get_organizer_results(
+    quiz_id: Optional[int] = Query(None, description="Optional quiz ID to filter submissions"),
+    db: Session = Depends(get_db),
+    current_organizer: User = Depends(get_current_organizer),
+):
+    """
+    Returns student submissions strictly for quizzes created by this teacher.
+    Teacher data isolation is strictly enforced.
+    """
+    return QuizService.get_organizer_results(db, organizer_id=current_organizer.id, quiz_id=quiz_id)
 
 
 @router.get(

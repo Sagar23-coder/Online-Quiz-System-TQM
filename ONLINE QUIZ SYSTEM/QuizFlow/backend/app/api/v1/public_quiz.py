@@ -2,6 +2,8 @@
 Public Quiz API Endpoints for Students (No Login Required).
 Enables seamless assessment access through secure share links.
 """
+from typing import Optional
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -9,10 +11,14 @@ from app.api.deps import get_db
 from app.schemas.attempt import (
     AnswerSubmitRequest,
     AnswerSubmitResponse,
+    IntegrityEventRequest,
+    PracticeCheckRequest,
+    PracticeCheckResponse,
     PublicAttemptResultResponse,
     PublicAttemptStartResponse,
     PublicQuizInfoResponse,
     PublicStudentDetailsRequest,
+    SubmitAttemptRequest,
 )
 from app.services.public_quiz_service import PublicQuizService
 
@@ -75,13 +81,14 @@ def save_public_answer(
 )
 def submit_public_attempt(
     attempt_token: str,
+    req: Optional[SubmitAttemptRequest] = None,
     db: Session = Depends(get_db),
 ):
     """
     Finalizes the student attempt, performs server-authoritative grading,
     persists result metrics, and returns the instant score report.
     """
-    return PublicQuizService.submit_public_attempt(db, attempt_token=attempt_token)
+    return PublicQuizService.submit_public_attempt(db, attempt_token=attempt_token, req=req)
 
 
 @router.get(
@@ -97,3 +104,34 @@ def get_public_result(
     Returns the student scorecard and question review items (if released).
     """
     return PublicQuizService.get_public_result(db, attempt_token=attempt_token)
+
+
+@router.post(
+    "/attempt/{attempt_token}/check-answer",
+    response_model=PracticeCheckResponse,
+    summary="Practice Mode: Check answer selection and receive immediate feedback",
+)
+def check_practice_answer(
+    attempt_token: str,
+    req: PracticeCheckRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Returns immediate formative explanation and correctness for Practice Mode assessments.
+    """
+    return PublicQuizService.check_practice_answer(db, attempt_token=attempt_token, req=req)
+
+
+@router.post(
+    "/attempt/{attempt_token}/integrity-event",
+    summary="Secure Exam Mode: Log student client integrity event",
+)
+def log_integrity_event(
+    attempt_token: str,
+    req: IntegrityEventRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Records student tab switches, window blur events, and network transitions.
+    """
+    return PublicQuizService.log_integrity_event(db, attempt_token=attempt_token, req=req)

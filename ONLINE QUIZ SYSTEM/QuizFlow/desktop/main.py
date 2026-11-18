@@ -14,22 +14,51 @@ desktop_dir = Path(__file__).resolve().parent
 if str(desktop_dir) not in sys.path:
     sys.path.insert(0, str(desktop_dir))
 
+# Attempt to load .env from desktop directory or project root
+try:
+    from dotenv import load_dotenv
+    env_file = desktop_dir / ".env"
+    if env_file.exists():
+        load_dotenv(dotenv_path=env_file)
+    else:
+        root_env = desktop_dir.parent / ".env"
+        if root_env.exists():
+            load_dotenv(dotenv_path=root_env)
+except ImportError:
+    # Minimal fallback dotenv reader if python-dotenv is not installed in desktop env
+    for cand in [desktop_dir / ".env", desktop_dir.parent / ".env"]:
+        if cand.exists():
+            with open(cand, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
 
 def ensure_backend_running():
     """Ensure the FastAPI backend is running; if not, launch it in the background."""
     import requests
 
     backend_url = os.getenv("QUIZFLOW_API_URL", "http://127.0.0.1:8000/api/v1")
-    health_url = backend_url.replace("/api/v1", "/health")
+    is_remote = not any(loc in backend_url.lower() for loc in ("127.0.0.1", "localhost", "0.0.0.0"))
+    health_url = backend_url.rstrip("/").replace("/api/v1", "/health")
+    if not health_url.endswith("/health"):
+        health_url += "/health"
 
     # Check if backend is already responding
     try:
-        res = requests.get(health_url, timeout=1.5)
+        res = requests.get(health_url, timeout=3.0)
         if res.status_code == 200:
-            print("[✓] Backend is already running.")
+            print(f"[✓] Connected to QuizFlow backend at: {backend_url}")
             return
     except Exception:
         pass
+
+    if is_remote:
+        print(f"[!] Notice: Cloud backend at {backend_url} did not respond to health check.")
+        print("[!] The desktop client will still proceed; verify your network connection or server status.")
+        return
 
     # Locate backend root
     project_root = desktop_dir.parent

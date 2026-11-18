@@ -307,8 +307,22 @@ class AdminQuizzesView(ctk.CTkFrame):
             fg_color=pub_btn_color,
             width=130,
             height=30,
-            command=lambda q_id=q["id"], pub=is_pub: self._toggle_publish(q_id, pub),
+            command=lambda q_obj=q, pub=is_pub: self._toggle_publish(q_obj, pub),
         ).pack(pady=(0, 6))
+
+        # Share Link Button (when published)
+        if is_pub:
+            ctk.CTkButton(
+                actions,
+                text="🔗 Share Link",
+                font=Theme.FONT_SMALL,
+                fg_color="#6366F1",
+                hover_color="#4F46E5",
+                text_color="#FFFFFF",
+                width=130,
+                height=28,
+                command=lambda q_obj=q: self._open_share_dialog(q_obj),
+            ).pack(pady=(0, 6))
 
         # Delete Button
         ctk.CTkButton(
@@ -322,12 +336,26 @@ class AdminQuizzesView(ctk.CTkFrame):
             command=lambda q_id=q["id"]: self._delete_quiz(q_id),
         ).pack()
 
-    def _toggle_publish(self, quiz_id: int, currently_published: bool):
+    def _open_share_dialog(self, quiz_obj: dict):
+        try:
+            from app.ui.organizer_quizzes_view import ShareQuizDialog
+            ShareQuizDialog(self.winfo_toplevel(), quiz_obj)
+        except Exception as e:
+            print(f"[AdminQuizzesView] Error opening share dialog: {e}")
+
+    def _toggle_publish(self, quiz_obj: dict, currently_published: bool):
+        quiz_id = quiz_obj["id"]
         if currently_published:
             api_client.unpublish_quiz(quiz_id)
+            self.load_quizzes()
         else:
-            api_client.publish_quiz(quiz_id)
-        self.load_quizzes()
+            ok, res = api_client.publish_quiz(quiz_id)
+            self.load_quizzes()
+            if ok:
+                updated_quiz = dict(quiz_obj)
+                if isinstance(res, dict) and "share_token" in res:
+                    updated_quiz.update(res)
+                self._open_share_dialog(updated_quiz)
 
     def _delete_quiz(self, quiz_id: int):
         ok, res = api_client.delete_quiz(quiz_id)

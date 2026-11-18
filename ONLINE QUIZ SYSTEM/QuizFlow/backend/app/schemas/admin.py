@@ -72,7 +72,8 @@ class ResultListItem(BaseModel):
     percentage: float
     is_passed: bool
     start_time: datetime
-    end_time: Optional[datetime]
+    end_time: Optional[datetime] = None
+    submitted_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 

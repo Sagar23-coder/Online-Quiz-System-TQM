@@ -28,7 +28,8 @@ def get_quiz_questions(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_organizer),
 ):
-    return QuizService.get_quiz_questions_admin(db, quiz_id)
+    is_admin = current_user.role == UserRole.ADMIN.value
+    return QuizService.get_quiz_questions_admin(db, quiz_id, user_id=current_user.id, is_admin=is_admin)
 
 
 @router.post(

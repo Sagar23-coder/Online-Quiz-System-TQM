@@ -7,6 +7,7 @@ Enables students to participate in quizzes without accounts or login:
 - Server-authoritative timer and instant result grading
 """
 from datetime import datetime, timedelta, timezone
+import random
 import re
 import secrets
 from typing import Dict, List, Optional
@@ -22,14 +23,52 @@ from app.models.user import User
 from app.schemas.attempt import (
     AnswerSubmitRequest,
     AnswerSubmitResponse,
+    IntegrityEventRequest,
+    PracticeCheckRequest,
+    PracticeCheckResponse,
     PublicAttemptResultResponse,
     PublicAttemptStartResponse,
     PublicQuizInfoResponse,
     PublicStudentDetailsRequest,
     QuestionReviewItem,
+    SubmitAttemptRequest,
 )
 from app.schemas.question import QuestionStudentResponse
 from app.services.audit_service import AuditService
+
+
+def get_shuffled_options(seed: int, q_id: int, opt_a: str, opt_b: str, opt_c: str, opt_d: str, correct_opt: str):
+    """
+    Deterministically shuffles options for a question using the student attempt's seed.
+    Guarantees every student gets shuffled options, while preserving deterministic replay and grading.
+    """
+    valid_keys = ["A", "B"]
+    orig = {"A": opt_a or "", "B": opt_b or ""}
+    if opt_c:
+        valid_keys.append("C")
+        orig["C"] = opt_c
+    if opt_d:
+        valid_keys.append("D")
+        orig["D"] = opt_d
+
+    q_rng = random.Random((seed or 0) ^ (q_id * 10007))
+    shuffled_keys = list(valid_keys)
+    q_rng.shuffle(shuffled_keys)
+
+    display_opts = {
+        "option_a": orig[shuffled_keys[0]],
+        "option_b": orig[shuffled_keys[1]],
+        "option_c": orig.get(shuffled_keys[2], "") if len(shuffled_keys) > 2 else "",
+        "option_d": orig.get(shuffled_keys[3], "") if len(shuffled_keys) > 3 else "",
+    }
+
+    norm_correct = correct_opt.strip().upper() if correct_opt else "A"
+    if norm_correct in shuffled_keys:
+        disp_correct = valid_keys[shuffled_keys.index(norm_correct)]
+    else:
+        disp_correct = norm_correct
+
+    return display_opts, disp_correct
 
 
 class PublicQuizService:
@@ -155,6 +194,10 @@ class PublicQuizService:
             is_published=quiz.is_published,
             is_active=quiz.is_share_link_active,
             max_attempts=quiz.max_attempts,
+            mode=getattr(quiz, "mode", "exam") or "exam",
+            shuffle_questions=getattr(quiz, "shuffle_questions", True),
+            shuffle_options=getattr(quiz, "shuffle_options", True),
+            result_release_policy=getattr(quiz, "result_release_policy", "immediate") or "immediate",
         )
 
     @staticmethod
@@ -247,6 +290,7 @@ class PublicQuizService:
         start_time = now
         deadline_time = start_time + timedelta(minutes=quiz.duration_minutes)
         attempt_token = secrets.token_urlsafe(24)
+        order_seed = secrets.randbelow(1_000_000)
 
         attempt = QuizAttempt(
             student_id=None,
@@ -257,6 +301,8 @@ class PublicQuizService:
             participant_email=email,
             participant_phone=phone,
             attempt_token=attempt_token,
+            question_order_seed=order_seed,
+            integrity_events="[]",
             start_time=start_time,
             deadline_time=deadline_time,
             status=AttemptStatus.IN_PROGRESS.value,
@@ -305,21 +351,29 @@ class PublicQuizService:
             deadline = deadline.replace(tzinfo=timezone.utc)
         remaining = max(0, int((deadline - now).total_seconds()))
 
-        # Sanitize questions (never leak correct_option or explanation to student!)
-        safe_questions = [
-            QuestionStudentResponse(
-                id=q.id,
-                quiz_id=q.quiz_id,
-                question_text=q.question_text,
-                option_a=q.option_a,
-                option_b=q.option_b,
-                option_c=q.option_c,
-                option_d=q.option_d,
-                marks=q.marks,
-                order_index=q.order_index,
+        seed = attempt.question_order_seed or 0
+
+        # Deterministic Question & Option Scrambling per student attempt
+        safe_questions = []
+        for q in questions:
+            disp_opts, _ = get_shuffled_options(seed, q.id, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_option)
+            safe_questions.append(
+                QuestionStudentResponse(
+                    id=q.id,
+                    quiz_id=q.quiz_id,
+                    question_text=q.question_text,
+                    option_a=disp_opts["option_a"],
+                    option_b=disp_opts["option_b"],
+                    option_c=disp_opts["option_c"],
+                    option_d=disp_opts["option_d"],
+                    marks=q.marks,
+                    order_index=q.order_index,
+                )
             )
-            for q in questions
-        ]
+
+        if len(safe_questions) > 1:
+            q_rng = random.Random(seed)
+            q_rng.shuffle(safe_questions)
 
         return PublicAttemptStartResponse(
             attempt_token=attempt.attempt_token,
@@ -333,7 +387,72 @@ class PublicQuizService:
             remaining_seconds=remaining,
             questions=safe_questions,
             saved_answers=saved_answers,
+            mode=getattr(quiz, "mode", "exam") or "exam",
         )
+
+    @staticmethod
+    def check_practice_answer(db: Session, attempt_token: str, req: PracticeCheckRequest) -> PracticeCheckResponse:
+        """
+        Practice Mode Feature: Immediate formative feedback without ending the attempt.
+        """
+        attempt = db.query(QuizAttempt).filter(QuizAttempt.attempt_token == attempt_token).first()
+        if not attempt:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attempt not found.")
+        quiz = db.query(Quiz).filter(Quiz.id == attempt.quiz_id).first()
+        if not quiz:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found.")
+
+        question = db.query(Question).filter(Question.id == req.question_id, Question.quiz_id == quiz.id).first()
+        if not question:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found in this assessment.")
+
+        seed = attempt.question_order_seed or 0
+        _, disp_correct = get_shuffled_options(seed, question.id, question.option_a, question.option_b, question.option_c, question.option_d, question.correct_option)
+        is_correct = (
+            req.selected_option.strip().upper() == disp_correct.upper()
+            or req.selected_option.strip().upper() == question.correct_option.strip().upper()
+        )
+        hint = None
+        if not is_correct:
+            hint = f"Focus on core principles of {question.topic or 'this concept'}. Review options carefully."
+
+        return PracticeCheckResponse(
+            question_id=question.id,
+            is_correct=is_correct,
+            correct_option=disp_correct,
+            explanation=question.explanation,
+            hint=hint,
+        )
+
+    @staticmethod
+    def log_integrity_event(db: Session, attempt_token: str, req: IntegrityEventRequest) -> Dict[str, Any]:
+        """
+        Secure Exam Mode: Records tab switches, full-screen exits, and reconnect events.
+        """
+        import json
+        attempt = db.query(QuizAttempt).filter(QuizAttempt.attempt_token == attempt_token).first()
+        if not attempt:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attempt not found.")
+
+        current_events = []
+        if attempt.integrity_events:
+            try:
+                current_events = json.loads(attempt.integrity_events)
+            except Exception:
+                current_events = []
+
+        now_str = datetime.now(timezone.utc).isoformat()
+        event_entry = {
+            "event": req.event_type,
+            "server_time": now_str,
+            "client_time": req.client_timestamp or now_str,
+            "details": req.details or {},
+        }
+        current_events.append(event_entry)
+        attempt.integrity_events = json.dumps(current_events)
+        db.commit()
+
+        return {"status": "logged", "total_events": len(current_events)}
 
     @staticmethod
     def save_public_answer(
@@ -399,10 +518,38 @@ class PublicQuizService:
         )
 
     @staticmethod
-    def submit_public_attempt(db: Session, attempt_token: str) -> PublicAttemptResultResponse:
+    def submit_public_attempt(
+        db: Session, attempt_token: str, req: Optional[SubmitAttemptRequest] = None
+    ) -> PublicAttemptResultResponse:
         attempt = db.query(QuizAttempt).filter(QuizAttempt.attempt_token == attempt_token).first()
         if not attempt:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz attempt not found.")
+
+        # Persist latest answers from submit payload before grading
+        if req and req.answers:
+            now = datetime.now(timezone.utc)
+            for q_id_val, opt_val in req.answers.items():
+                if opt_val:
+                    try:
+                        q_id = int(q_id_val)
+                    except (ValueError, TypeError):
+                        continue
+                    existing = (
+                        db.query(AttemptAnswer)
+                        .filter(AttemptAnswer.attempt_id == attempt.id, AttemptAnswer.question_id == q_id)
+                        .first()
+                    )
+                    if existing:
+                        existing.selected_option = opt_val
+                        existing.answered_at = now
+                    else:
+                        db.add(AttemptAnswer(
+                            attempt_id=attempt.id,
+                            question_id=q_id,
+                            selected_option=opt_val,
+                            answered_at=now,
+                        ))
+            db.commit()
 
         if attempt.status != AttemptStatus.IN_PROGRESS.value:
             # Already submitted or finalized: return existing result
@@ -447,12 +594,17 @@ class PublicQuizService:
             for a in db.query(AttemptAnswer).filter(AttemptAnswer.attempt_id == attempt.id).all()
         }
 
+        seed = attempt.question_order_seed or 0
         total_score = 0.0
         total_quiz_marks = sum(q.marks for q in questions) if questions else 0.0
 
         for q in questions:
             ans = answers_map.get(q.id)
-            if ans and ans.selected_option and ans.selected_option.upper() == q.correct_option.upper():
+            _, disp_correct = get_shuffled_options(seed, q.id, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_option)
+            if ans and ans.selected_option and (
+                ans.selected_option.strip().upper() == disp_correct.upper()
+                or ans.selected_option.strip().upper() == q.correct_option.strip().upper()
+            ):
                 ans.is_correct = True
                 ans.marks_awarded = float(q.marks)
                 total_score += float(q.marks)
@@ -503,11 +655,19 @@ class PublicQuizService:
         unattempted_count = 0
         review_items: List[QuestionReviewItem] = []
 
-        for q in questions:
+        seed = attempt.question_order_seed or 0
+        questions_list = list(questions)
+        if len(questions_list) > 1:
+            q_rng = random.Random(seed)
+            q_rng.shuffle(questions_list)
+
+        for q in questions_list:
             ans = answers_map.get(q.id)
             selected_option = ans.selected_option if ans else None
             is_correct = ans.is_correct if ans else False
             marks_awarded = ans.marks_awarded if ans else 0.0
+
+            disp_opts, disp_correct = get_shuffled_options(seed, q.id, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_option)
 
             if selected_option is None:
                 unattempted_count += 1
@@ -521,12 +681,13 @@ class PublicQuizService:
                     QuestionReviewItem(
                         question_id=q.id,
                         question_text=q.question_text,
-                        option_a=q.option_a,
-                        option_b=q.option_b,
-                        option_c=q.option_c,
-                        option_d=q.option_d,
+                        option_a=disp_opts["option_a"],
+                        option_b=disp_opts["option_b"],
+                        option_c=disp_opts["option_c"],
+                        option_d=disp_opts["option_d"],
                         selected_option=selected_option,
-                        correct_option=q.correct_option,
+                        student_option=selected_option,
+                        correct_option=disp_correct,
                         is_correct=is_correct,
                         marks_awarded=marks_awarded,
                         max_marks=q.marks,

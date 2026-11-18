@@ -2,7 +2,7 @@
 Quiz Attempt and Answer Pydantic Schemas.
 """
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -52,11 +52,16 @@ class QuestionReviewItem(BaseModel):
     option_c: str
     option_d: str
     selected_option: Optional[str]
+    student_option: Optional[str] = None
     correct_option: Optional[str] = None
     is_correct: bool = False
     marks_awarded: float = 0.0
     max_marks: int = 1
     explanation: Optional[str] = None
+
+
+class SubmitAttemptRequest(BaseModel):
+    answers: Optional[Dict[int, Optional[str]]] = None
 
 
 class AttemptResultResponse(BaseModel):
@@ -131,6 +136,10 @@ class PublicQuizInfoResponse(BaseModel):
     is_published: bool
     is_active: bool
     max_attempts: int = 1
+    mode: str = "exam"
+    shuffle_questions: bool = True
+    shuffle_options: bool = True
+    result_release_policy: str = "immediate"
 
 
 class PublicAttemptStartResponse(BaseModel):
@@ -145,6 +154,26 @@ class PublicAttemptStartResponse(BaseModel):
     remaining_seconds: int
     questions: List[QuestionStudentResponse]
     saved_answers: Dict[int, Optional[str]] = {}
+    mode: str = "exam"
+
+
+class PracticeCheckRequest(BaseModel):
+    question_id: int
+    selected_option: str
+
+
+class PracticeCheckResponse(BaseModel):
+    question_id: int
+    is_correct: bool
+    correct_option: str
+    explanation: Optional[str] = None
+    hint: Optional[str] = None
+
+
+class IntegrityEventRequest(BaseModel):
+    event_type: str
+    client_timestamp: Optional[str] = None
+    details: Optional[Dict[str, Any]] = None
 
 
 class PublicAttemptResultResponse(BaseModel):

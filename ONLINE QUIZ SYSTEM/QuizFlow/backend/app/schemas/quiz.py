@@ -17,6 +17,10 @@ class QuizBase(BaseModel):
     is_public: bool = True
     max_attempts: int = Field(1, ge=1, le=10)
     release_results_immediately: bool = True
+    mode: Optional[str] = "exam"
+    shuffle_questions: Optional[bool] = True
+    shuffle_options: Optional[bool] = True
+    result_release_policy: Optional[str] = "immediate"
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
 
@@ -37,6 +41,10 @@ class QuizUpdate(BaseModel):
     max_attempts: Optional[int] = Field(None, ge=1, le=10)
     release_results_immediately: Optional[bool] = None
     results_released: Optional[bool] = None
+    mode: Optional[str] = None
+    shuffle_questions: Optional[bool] = None
+    shuffle_options: Optional[bool] = None
+    result_release_policy: Optional[str] = None
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
 

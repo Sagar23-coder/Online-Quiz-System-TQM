@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QuizFlow — Student Assessment</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #4F46E5;
+      --primary-hover: #4338CA;
+      --primary-light: #EEF2FF;
+      --primary-glow: rgba(79, 70, 229, 0.18);
+      --success: #10B981;
+      --success-bg: #ECFDF5;
+      --danger: #EF4444;
+      --danger-bg: #FEF2F2;
+      --warning: #F59E0B;
+      --warning-bg: #FFFBEB;
+      --bg-dark: #0F172A;
+      --bg-card: #FFFFFF;
+      --text-main: #1E293B;
+      --text-muted: #64748B;
+      --border: #E2E8F0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background-color: #F8FAFC; color: var(--text-main); min-height: 100vh; display: flex; flex-direction: column; }
+    
+    /* Strict Visibility Control - No Overlaps */
+    .hidden { display: none !important; }
+
+    .navbar { background: #FFFFFF; border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 1.25rem; color: var(--primary); }
+    .container { max-width: 780px; margin: 28px auto; padding: 0 16px; width: 100%; flex: 1; }
+    .card { background: var(--bg-card); border-radius: 16px; border: 1px solid var(--border); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.05); padding: 28px; margin-bottom: 24px; }
+    
+    h1 { font-size: 1.75rem; font-weight: 800; color: #0F172A; margin-bottom: 8px; }
+    .badge { display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+    .badge-primary { background: var(--primary-light); color: var(--primary); }
+    .badge-success { background: var(--success-bg); color: var(--success); }
+    .badge-danger { background: var(--danger-bg); color: var(--danger); }
+    .badge-warning { background: var(--warning-bg); color: #B45309; }
+
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-size: 0.875rem; font-weight: 600; color: #334155; margin-bottom: 6px; }
+    input { width: 100%; padding: 12px 14px; border-radius: 8px; border: 1.5px solid var(--border); font-size: 0.95rem; transition: border-color 0.2s; background: #FFFFFF; }
+    input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
+    
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 20px; border-radius: 10px; font-weight: 700; font-size: 0.95rem; border: none; cursor: pointer; transition: all 0.2s; text-decoration: none; }
+    .btn-primary { background: var(--primary); color: #FFFFFF; }
+    .btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); }
+    .btn-secondary { background: #F1F5F9; color: #1E293B; border: 1px solid #CBD5E1; }
+    .btn-secondary:hover { background: #E2E8F0; }
+    .btn-outline { background: transparent; color: var(--text-muted); border: 1.5px solid var(--border); }
+    .btn-outline:hover { background: #F1F5F9; color: var(--text-main); }
+    .btn-danger { background: var(--danger); color: #FFFFFF; }
+    .btn-danger:hover { background: #DC2626; }
+    .btn-full { width: 100%; padding: 14px; font-size: 1.05rem; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 600px) { .grid-2 { grid-template-columns: 1fr; } }
+
+    /* Top Sticky Assessment Bar */
+    .timer-bar { background: #0F172A; color: #FFFFFF; border-radius: 14px; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; font-weight: 700; margin-bottom: 16px; position: sticky; top: 70px; z-index: 90; box-shadow: 0 6px 16px rgba(0,0,0,0.18); }
+    .timer-val { font-size: 1.35rem; font-variant-numeric: tabular-nums; color: #FBBF24; font-weight: 800; }
+    .timer-val.warning { color: #EF4444; animation: pulse 1s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+    /* Progress Indicator Bar */
+    .progress-track { height: 6px; background: #E2E8F0; border-radius: 6px; overflow: hidden; margin-bottom: 16px; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, #4F46E5, #6366F1); width: 0%; transition: width 0.3s ease; }
+
+    /* Question Palette (Quick Jump) */
+    .palette-box { background: #FFFFFF; border-radius: 12px; border: 1px solid var(--border); padding: 12px 16px; margin-bottom: 18px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .palette-btn { width: 34px; height: 34px; border-radius: 8px; border: 1.5px solid var(--border); background: #FFFFFF; font-weight: 700; font-size: 0.85rem; color: var(--text-muted); cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; }
+    .palette-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .palette-btn.active { border-color: var(--primary); background: var(--primary); color: #FFFFFF; box-shadow: 0 0 0 3px var(--primary-glow); }
+    .palette-btn.answered { background: #ECFDF5; border-color: #10B981; color: #047857; font-weight: 800; }
+    .palette-btn.active.answered { background: var(--primary); border-color: var(--primary); color: #FFFFFF; }
+
+    /* Focused Single Question Screen */
+    .question-card { background: #FFFFFF; border-radius: 14px; border: 1.5px solid var(--border); padding: 26px; margin-bottom: 18px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.04); }
+    .q-number { font-size: 0.85rem; font-weight: 800; color: var(--primary); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px; }
+    .q-text { font-size: 1.2rem; font-weight: 700; color: #0F172A; margin-bottom: 22px; line-height: 1.55; }
+    
+    .options-list { display: flex; flex-direction: column; gap: 12px; }
+    .option-item { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-radius: 10px; border: 2px solid var(--border); cursor: pointer; transition: all 0.15s; background: #FFFFFF; font-weight: 500; font-size: 1rem; color: #1E293B; }
+    .option-item:hover { border-color: #A5B4FC; background: #F8FAFC; transform: translateY(-1px); }
+    .option-item.selected { border-color: var(--primary); background: var(--primary-light); color: var(--primary); font-weight: 700; box-shadow: 0 0 0 2px var(--primary-glow); }
+    .opt-letter { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.9rem; border: 2px solid currentColor; flex-shrink: 0; }
+    .option-item.selected .opt-letter { background: var(--primary); color: #FFFFFF; border-color: var(--primary); }
+
+    .nav-buttons { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 20px; }
+
+    /* Congratulations Result Screen */
+    .congrats-card { text-align: center; padding: 36px 24px; }
+    .congrats-icon { font-size: 4rem; margin-bottom: 12px; line-height: 1; }
+    .congrats-title { font-size: 2.1rem; font-weight: 900; color: #0F172A; margin-bottom: 8px; }
+    .congrats-sub { font-size: 1.05rem; color: var(--text-muted); margin-bottom: 24px; }
+    .result-score { font-size: 3.8rem; font-weight: 900; color: var(--primary); line-height: 1; margin: 16px 0 6px 0; }
+
+    .review-item { padding: 18px; border-radius: 12px; margin-bottom: 14px; border: 1px solid var(--border); }
+    .review-item.correct { background: var(--success-bg); border-color: #A7F3D0; }
+    .review-item.incorrect { background: var(--danger-bg); border-color: #FECACA; }
+    
+    .alert-box { background: #FEF2F2; border: 1.5px solid #FECACA; color: #991B1B; border-radius: 10px; padding: 14px 18px; font-size: 0.95rem; font-weight: 600; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; line-height: 1.4; box-shadow: 0 1px 3px rgba(239, 68, 68, 0.08); }
+    .feedback-box { margin-top: 14px; padding: 14px 18px; border-radius: 10px; font-size: 0.95rem; border: 1.5px solid transparent; }
+    .feedback-box.correct { background: #ECFDF5; border-color: #A7F3D0; color: #065F46; }
+    .feedback-box.incorrect { background: #FEF2F2; border-color: #FECACA; color: #991B1B; }
+    .btn-check { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: 8px; font-size: 0.88rem; font-weight: 700; border: none; cursor: pointer; background: #4F46E5; color: #FFFFFF; transition: all 0.15s; margin-top: 14px; }
+    .btn-check:hover { background: #4338CA; }
+
+    /* Modal Dialog for Submit Confirmation */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 16px; }
+    .modal-card { background: #FFFFFF; border-radius: 16px; max-width: 440px; width: 100%; padding: 24px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.25); text-align: center; }
+
+    /* WCAG 2.2 AA High Contrast */
+    body.high-contrast { background-color: #FFFFFF !important; color: #000000 !important; }
+    body.high-contrast .card, body.high-contrast .question-card { border: 2px solid #000000 !important; box-shadow: none !important; }
+    body.high-contrast .option-item { border: 2px solid #000000 !important; color: #000000 !important; font-weight: 700 !important; }
+    body.high-contrast .option-item.selected { background: #000000 !important; color: #FFFFFF !important; }
+    body.high-contrast input { border: 2px solid #000000 !important; color: #000000 !important; }
+  </style>
+</head>
+<body>
+  <div class="navbar">
+    <div class="brand">⚡ QuizFlow</div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <button type="button" onclick="toggleHighContrast()" style="background:#F1F5F9; border:1px solid #CBD5E1; border-radius:6px; padding:4px 10px; font-size:0.75rem; font-weight:700; cursor:pointer;" title="Toggle High Contrast Mode">🌓 Contrast</button>
+      <div id="quizBadge" class="badge badge-primary">Student Assessment</div>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- ========================================== -->
+    <!-- SCREEN 1: Welcome & Student Details Form  -->
+    <!-- (Visible initially on opening quiz link)   -->
+    <!-- ========================================== -->
+    <div id="screenWelcome" class="card">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 12px;">
+        <span class="badge badge-primary" id="metaSubject">General Assessment</span>
+        <span class="badge badge-success" id="metaDuration">-- Mins</span>
+      </div>
+      <h1 id="quizTitle">Loading Assessment...</h1>
+      <p id="quizDesc" style="color: var(--text-muted); margin-bottom: 20px; font-size: 0.95rem; line-height: 1.5;"></p>
+
+      <div style="background: #F8FAFC; border-radius: 12px; padding: 18px; margin-bottom: 24px; border: 1px solid var(--border);">
+        <h4 style="margin-bottom: 8px; font-size: 0.95rem; color: #334155;">Assessment Rules:</h4>
+        <ul style="padding-left: 20px; font-size: 0.88rem; color: var(--text-muted); line-height: 1.6;">
+          <li>Once started, the countdown timer cannot be paused.</li>
+          <li>Your selected answers are saved automatically as you click.</li>
+          <li>You can navigate questions back and forth using Previous / Next or the Question Palette.</li>
+          <li>Results and scores will be calculated immediately upon submission.</li>
+        </ul>
+      </div>
+
+      <h3 style="font-size: 1.15rem; margin-bottom: 16px; color: #0F172A;">Enter Student Information</h3>
+      <form id="startForm" onsubmit="handleStartQuiz(event)">
+        <div class="form-group">
+          <label for="fullName">Full Name *</label>
+          <input type="text" id="fullName" placeholder="e.g. Alex Morgan" required autocomplete="name">
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label for="studentClass">Class *</label>
+            <input type="text" id="studentClass" placeholder="e.g. B.Tech / BCA / Class 12" required>
+          </div>
+          <div class="form-group">
+            <label for="section">Sem / Section *</label>
+            <input type="text" id="section" placeholder="e.g. 5th Sem, Section B" required>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label for="email">Email Address (Optional)</label>
+            <input type="email" id="email" placeholder="student@example.com" autocomplete="email">
+          </div>
+          <div class="form-group">
+            <label for="phone">Phone / Mobile (Optional)</label>
+            <input type="tel" id="phone" placeholder="e.g. 9876543210" autocomplete="tel">
+          </div>
+        </div>
+        <div id="startError" class="alert-box hidden"></div>
+        <button type="submit" id="startBtn" class="btn btn-primary btn-full">🚀 Begin Assessment</button>
+      </form>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- SCREEN 2: Active Quiz Taking Interface     -->
+    <!-- (Shown ONLY after clicking Begin)          -->
+    <!-- ========================================== -->
+    <div id="screenActive" class="hidden">
+      <!-- Top Sticky Timer & Progress -->
+      <div class="timer-bar">
+        <div>
+          <div style="font-size: 0.8rem; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.5px;">Assessment</div>
+          <span id="activeQuizTitle" style="font-size: 1.05rem;">Quiz</span>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-size: 0.75rem; text-transform: uppercase; color: #94A3B8;">Time Remaining</div>
+          <span id="timerVal" class="timer-val">--:--</span>
+        </div>
+      </div>
+
+      <!-- Question Palette / Quick Jump Grid -->
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+        <span style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted);" id="qCounterText">Question 1 of 1</span>
+        <span style="font-size: 0.85rem; font-weight: 700; color: var(--success);" id="answeredCountText">Answered: 0</span>
+      </div>
+      <div class="progress-track">
+        <div id="progressBar" class="progress-fill"></div>
+      </div>
+      <div class="palette-box" id="paletteContainer"></div>
+
+      <!-- Single Question Focused View (No Scrolling!) -->
+      <div class="question-card" id="singleQuestionCard">
+        <div class="q-number" id="cardQNum">Question 1</div>
+        <div class="q-text" id="cardQText">Loading question...</div>
+        <div class="options-list" id="cardOptionsList" role="radiogroup"></div>
+      </div>
+
+      <!-- Navigation & Action Buttons -->
+      <div class="nav-buttons">
+        <button type="button" class="btn btn-outline" id="prevBtn" onclick="navigateQuestion(-1)">⬅ Previous</button>
+        <button type="button" class="btn btn-outline" id="clearBtn" onclick="clearCurrentAnswer()">✕ Clear</button>
+        <div style="display:flex; gap:10px;">
+          <button type="button" class="btn btn-secondary" id="nextBtn" onclick="navigateQuestion(1)">Next ➔</button>
+          <button type="button" class="btn btn-primary" id="openSubmitBtn" onclick="openSubmitModal()">✓ Submit Assessment</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- SCREEN 3: Congratulations & Scorecard      -->
+    <!-- (Shown ONLY after clicking Submit)         -->
+    <!-- ========================================== -->
+    <div id="screenResult" class="card congrats-card hidden">
+      <div class="congrats-icon">🎉</div>
+      <div id="resultBadge" class="badge badge-success" style="font-size: 0.95rem; padding: 6px 18px; margin-bottom: 12px;">PASSED</div>
+      <h1 class="congrats-title" id="resultStudentName">Congratulations!</h1>
+      <p class="congrats-sub">You have successfully completed the assessment.</p>
+
+      <div class="result-score" id="resultScore">0 / 0</div>
+      <p style="font-size: 1.25rem; font-weight: 800; color: #475569; margin-bottom: 26px;" id="resultPercent">0% Score</p>
+
+      <div class="grid-2" style="margin-bottom: 24px; text-align: left;">
+        <div style="background: #F8FAFC; padding: 16px; border-radius: 12px; border: 1px solid var(--border);">
+          <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">Correct Answers</div>
+          <div style="font-size: 1.4rem; font-weight: 800; color: var(--success);" id="statCorrect">0</div>
+        </div>
+        <div style="background: #F8FAFC; padding: 16px; border-radius: 12px; border: 1px solid var(--border);">
+          <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">Passing Criteria</div>
+          <div style="font-size: 1.4rem; font-weight: 800; color: var(--primary);" id="statPassing">50%</div>
+        </div>
+      </div>
+
+      <div id="reviewContainer" style="text-align: left; margin-top: 32px;">
+        <h3 style="margin-bottom: 16px; font-size: 1.2rem; color: #0F172A;">Detailed Answer Review</h3>
+        <div id="reviewList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Submit Confirmation Modal Pop-up -->
+  <div id="submitModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div style="font-size: 2.5rem; margin-bottom: 8px;">📋</div>
+      <h3 style="font-size: 1.3rem; font-weight: 800; margin-bottom: 8px; color:#0F172A;">Submit Assessment?</h3>
+      <p id="submitModalSummary" style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 20px; line-height: 1.5;">Are you sure you want to finalize your submission?</p>
+      <div style="display:flex; gap:10px;">
+        <button type="button" class="btn btn-outline" style="flex:1;" onclick="closeSubmitModal()">Review Questions</button>
+        <button type="button" class="btn btn-primary" style="flex:1;" id="finalSubmitBtn" onclick="confirmSubmitQuiz()">Yes, Submit Now</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SHARE_TOKEN = window.location.pathname.split("/").filter(Boolean).pop();
+    const API_BASE = "/api/v1";
+
+    let quizData = null;
+    let attemptToken = null;
+    let questions = [];
+    let currentIdx = 0;
+    let savedAnswers = {};
+    let timerInterval = null;
+    let remainingSeconds = 0;
+    let currentQuizMode = "exam";
+    let offlineQueue = [];
+
+    async function init() {
+      try {
+        const res = await fetch(`${API_BASE}/quiz/${SHARE_TOKEN}`);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          document.getElementById("quizTitle").textContent = "Assessment Unavailable";
+          document.getElementById("quizDesc").textContent = err.detail || "This quiz link is inactive or has expired. Please contact your instructor.";
+          document.getElementById("startBtn").disabled = true;
+          document.getElementById("startBtn").style.background = "#94A3B8";
+          return;
+        }
+        quizData = await res.json();
+        document.getElementById("quizTitle").textContent = quizData.title;
+        document.getElementById("quizDesc").textContent = quizData.instructions || quizData.description || "Complete the multiple-choice questions below.";
+        document.getElementById("metaSubject").textContent = quizData.subject || "General";
+        document.getElementById("metaDuration").textContent = `${quizData.duration_minutes} Mins`;
+      } catch (e) {
+        document.getElementById("quizTitle").textContent = "Connection Error";
+        document.getElementById("quizDesc").textContent = "Could not connect to QuizFlow server. Please ensure the backend is running.";
+      }
+    }
+
+    async function handleStartQuiz(e) {
+      e.preventDefault();
+      const errBox = document.getElementById("startError");
+      errBox.textContent = "";
+      errBox.classList.add("hidden");
+
+      const name = document.getElementById("fullName").value.trim();
+      const sClass = document.getElementById("studentClass").value.trim();
+      const section = document.getElementById("section").value.trim();
+      let email = document.getElementById("email").value.trim();
+      let phone = document.getElementById("phone").value.trim();
+
+      if (!email && !phone) {
+        email = `${name.toLowerCase().replace(/[^a-z0-9]/g, '')}@student.quizflow`;
+      }
+
+      const payload = {
+        full_name: name,
+        student_class: sClass,
+        section: section,
+        email: email || null,
+        phone: phone || null,
+      };
+
+      const btn = document.getElementById("startBtn");
+      btn.disabled = true;
+      btn.textContent = "Starting Quiz...";
+
+      try {
+        const res = await fetch(`${API_BASE}/quiz/${SHARE_TOKEN}/start`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+          let errorMsg = "Unable to start quiz. Please check your details.";
+          try {
+            const err = await res.json();
+            if (typeof err.detail === "string") {
+              errorMsg = err.detail;
+            } else if (Array.isArray(err.detail)) {
+              errorMsg = err.detail.map(d => d.msg || JSON.stringify(d)).join(", ");
+            } else if (err.message) {
+              errorMsg = err.message;
+            }
+          } catch (_) {
+            const txt = await res.text().catch(() => "");
+            if (txt) errorMsg = txt;
+          }
+          errBox.innerHTML = `⚠️ <span>${escapeHtml(errorMsg)}</span>`;
+          errBox.classList.remove("hidden");
+          btn.disabled = false;
+          btn.textContent = "🚀 Begin Assessment";
+          return;
+        }
+
+        const data = await res.json();
+        attemptToken = data.attempt_token;
+        questions = data.questions || [];
+        remainingSeconds = data.remaining_seconds || (data.duration_minutes * 60);
+        savedAnswers = data.saved_answers || {};
+        currentQuizMode = data.mode || "exam";
+        currentIdx = 0;
+
+        // Transition Screen: Hide Welcome, Show Active Quiz Screen
+        document.getElementById("screenWelcome").classList.add("hidden");
+        document.getElementById("screenActive").classList.remove("hidden");
+        document.getElementById("activeQuizTitle").textContent = data.quiz_title;
+        
+        const qBadge = document.getElementById("quizBadge");
+        if (qBadge) {
+          qBadge.textContent = currentQuizMode === "practice" ? "Practice Assessment" : "Secure Exam Mode";
+          qBadge.className = currentQuizMode === "practice" ? "badge badge-success" : "badge badge-primary";
+        }
+
+        renderQuestionPalette();
+        renderCurrentQuestion();
+        startTimer();
+      } catch (err) {
+        errBox.innerHTML = `⚠️ <span>Network error connecting to QuizFlow. Please ensure the server is reachable and retry.</span>`;
+        errBox.classList.remove("hidden");
+        btn.disabled = false;
+        btn.textContent = "🚀 Begin Assessment";
+      }
+    }
+
+    function renderQuestionPalette() {
+      const palette = document.getElementById("paletteContainer");
+      palette.innerHTML = "";
+
+      questions.forEach((q, idx) => {
+        const pBtn = document.createElement("button");
+        pBtn.type = "button";
+        pBtn.className = "palette-btn";
+        pBtn.textContent = idx + 1;
+        pBtn.title = `Jump to Question ${idx + 1}`;
+        pBtn.onclick = () => goToQuestion(idx);
+
+        if (idx === currentIdx) pBtn.classList.add("active");
+        if (savedAnswers[q.id]) pBtn.classList.add("answered");
+
+        palette.appendChild(pBtn);
+      });
+
+      updateProgressCounters();
+    }
+
+    function updateProgressCounters() {
+      const answeredCount = Object.keys(savedAnswers).filter(k => savedAnswers[k]).length;
+      const total = questions.length;
+      document.getElementById("qCounterText").textContent = `Question ${currentIdx + 1} of ${total}`;
+      document.getElementById("answeredCountText").textContent = `Answered: ${answeredCount} / ${total}`;
+
+      const pct = total > 0 ? ((currentIdx + 1) / total) * 100 : 0;
+      document.getElementById("progressBar").style.width = `${pct}%`;
+    }
+
+    function renderCurrentQuestion() {
+      if (!questions || questions.length === 0) return;
+      const q = questions[currentIdx];
+
+      document.getElementById("cardQNum").textContent = `Question ${currentIdx + 1} of ${questions.length} • ${q.marks} Mark(s)`;
+      document.getElementById("cardQText").textContent = q.question_text;
+
+      const optsContainer = document.getElementById("cardOptionsList");
+      optsContainer.innerHTML = "";
+
+      const selected = savedAnswers[q.id] || "";
+      const opts = [
+        { letter: "A", text: q.option_a },
+        { letter: "B", text: q.option_b },
+        { letter: "C", text: q.option_c },
+        { letter: "D", text: q.option_d },
+      ];
+
+      opts.forEach(opt => {
+        const item = document.createElement("div");
+        item.className = `option-item ${selected === opt.letter ? 'selected' : ''}`;
+        item.tabIndex = 0;
+        item.setAttribute("role", "radio");
+        item.setAttribute("aria-checked", selected === opt.letter ? "true" : "false");
+        item.onclick = () => selectOption(q.id, opt.letter);
+        item.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") selectOption(q.id, opt.letter); };
+
+        item.innerHTML = `
+          <div class="opt-letter">${opt.letter}</div>
+          <div style="flex:1;">${escapeHtml(opt.text)}</div>
+        `;
+        optsContainer.appendChild(item);
+      });
+
+      // Prev / Next button states
+      document.getElementById("prevBtn").disabled = (currentIdx === 0);
+      document.getElementById("prevBtn").style.opacity = (currentIdx === 0) ? "0.4" : "1";
+      document.getElementById("nextBtn").style.display = (currentIdx === questions.length - 1) ? "none" : "inline-flex";
+
+      renderQuestionPalette();
+    }
+
+    async function selectOption(questionId, letter) {
+      savedAnswers[questionId] = letter;
+      renderCurrentQuestion();
+
+      // Auto-save to backend with offline resilience
+      try {
+        await fetch(`${API_BASE}/attempt/${attemptToken}/save`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question_id: questionId, selected_option: letter })
+        });
+      } catch (e) {
+        offlineQueue.push({ question_id: questionId, selected_option: letter });
+        console.warn("Offline: Answer queued for auto-sync.");
+      }
+    }
+
+    async function clearCurrentAnswer() {
+      const q = questions[currentIdx];
+      if (!q) return;
+      delete savedAnswers[q.id];
+      renderCurrentQuestion();
+
+      try {
+        await fetch(`${API_BASE}/attempt/${attemptToken}/save`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question_id: q.id, selected_option: null })
+        });
+      } catch (_) {}
+    }
+
+    function navigateQuestion(delta) {
+      const next = currentIdx + delta;
+      if (next >= 0 && next < questions.length) {
+        currentIdx = next;
+        renderCurrentQuestion();
+      }
+    }
+
+    function goToQuestion(idx) {
+      if (idx >= 0 && idx < questions.length) {
+        currentIdx = idx;
+        renderCurrentQuestion();
+      }
+    }
+
+    function openSubmitModal() {
+      const answeredCount = Object.keys(savedAnswers).filter(k => savedAnswers[k]).length;
+      const total = questions.length;
+      const unanswered = total - answeredCount;
+
+      let msg = `You have answered <strong>${answeredCount}</strong> of <strong>${total}</strong> questions.`;
+      if (unanswered > 0) {
+        msg += `<br><span style="color:#D97706; font-weight:700;">⚠️ You still have ${unanswered} unanswered question(s)!</span>`;
+      } else {
+        msg += `<br><span style="color:#059669; font-weight:700;">✓ All questions answered!</span>`;
+      }
+      document.getElementById("submitModalSummary").innerHTML = msg;
+      document.getElementById("submitModal").classList.remove("hidden");
+    }
+
+    function closeSubmitModal() {
+      document.getElementById("submitModal").classList.add("hidden");
+    }
+
+    async function confirmSubmitQuiz() {
+      closeSubmitModal();
+      if (timerInterval) clearInterval(timerInterval);
+
+      const btn = document.getElementById("openSubmitBtn");
+      btn.disabled = true;
+      btn.textContent = "Grading Assessment...";
+
+      try {
+        const res = await fetch(`${API_BASE}/attempt/${attemptToken}/submit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ answers: savedAnswers })
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert(err.detail || "Submission failed. Please check your connection.");
+          btn.disabled = false;
+          btn.textContent = "✓ Submit Assessment";
+          return;
+        }
+
+        const result = await res.json();
+        renderResult(result);
+      } catch (err) {
+        alert("Error submitting assessment. Please check your network connection.");
+        btn.disabled = false;
+        btn.textContent = "✓ Submit Assessment";
+      }
+    }
+
+    function renderResult(r) {
+      // Transition Screen: Hide Active Quiz, Show Congratulations Screen
+      document.getElementById("screenActive").classList.add("hidden");
+      document.getElementById("screenResult").classList.remove("hidden");
+
+      const isPassed = r.is_passed;
+      const badge = document.getElementById("resultBadge");
+      badge.textContent = isPassed ? "🏆 PASSED" : "⚠️ NEEDS REVIEW";
+      badge.className = `badge ${isPassed ? 'badge-success' : 'badge-danger'}`;
+
+      document.getElementById("resultStudentName").textContent = `Congratulations, ${r.student_name}!`;
+      document.getElementById("resultScore").textContent = `${r.score_obtained} / ${r.total_marks}`;
+      document.getElementById("resultPercent").textContent = `${Math.round(r.percentage)}% Score`;
+      document.getElementById("statCorrect").textContent = `${r.correct_count} of ${r.total_questions}`;
+      document.getElementById("statPassing").textContent = `${r.passing_percentage}%`;
+
+      const reviewList = document.getElementById("reviewList");
+      reviewList.innerHTML = "";
+      if (r.review && r.review.length > 0) {
+        r.review.forEach((item, idx) => {
+          const div = document.createElement("div");
+          const isCorrect = item.is_correct;
+          const studentChoice = item.selected_option || item.student_option;
+          const choiceDisplay = studentChoice ? `Option ${studentChoice}` : 'Not Attempted';
+          const correctDisplay = item.correct_option ? `Option ${item.correct_option}` : 'N/A';
+
+          div.className = `review-item ${isCorrect ? 'correct' : 'incorrect'}`;
+          div.innerHTML = `
+            <div style="font-weight:700; margin-bottom: 8px; font-size:1.02rem;">Q${idx + 1}. ${escapeHtml(item.question_text)}</div>
+            <div style="font-size:0.95rem; margin-bottom: 6px; display:flex; gap:18px; flex-wrap:wrap;">
+              <div>Your Answer: <strong style="color: ${isCorrect ? 'var(--success)' : 'var(--danger)'};">${choiceDisplay}</strong></div>
+              <div>Correct Answer: <strong style="color: var(--success);">${correctDisplay}</strong></div>
+            </div>
+            ${item.explanation ? `<div style="font-size:0.85rem; color:#475569; margin-top:8px;">💡 <em>${escapeHtml(item.explanation)}</em></div>` : ''}
+          `;
+          reviewList.appendChild(div);
+        });
+      } else {
+        document.getElementById("reviewContainer").style.display = "none";
+      }
+    }
+
+    function startTimer() {
+      updateTimerDisplay();
+      timerInterval = setInterval(() => {
+        remainingSeconds--;
+        updateTimerDisplay();
+        if (remainingSeconds <= 0) {
+          clearInterval(timerInterval);
+          alert("Time has expired! Submitting your assessment automatically.");
+          confirmSubmitQuiz();
+        }
+      }, 1000);
+    }
+
+    function updateTimerDisplay() {
+      const mins = Math.floor(Math.max(0, remainingSeconds) / 60);
+      const secs = Math.max(0, remainingSeconds) % 60;
+      const timerEl = document.getElementById("timerVal");
+      timerEl.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+      if (remainingSeconds < 120) {
+        timerEl.classList.add("warning");
+      }
+    }
+
+    function toggleHighContrast() {
+      document.body.classList.toggle("high-contrast");
+    }
+
+    function escapeHtml(text) {
+      if (text === null || text === undefined) return "";
+      return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+
+    // Keyboard Shortcuts (1-4 or A-D for options, Arrow keys for navigation)
+    document.addEventListener("keydown", (e) => {
+      if (!attemptToken || document.getElementById("screenActive").classList.contains("hidden")) return;
+      const key = e.key.toUpperCase();
+      const map = { '1': 'A', '2': 'B', '3': 'C', '4': 'D', 'A': 'A', 'B': 'B', 'C': 'C', 'D': 'D' };
+      if (map[key] && questions[currentIdx]) {
+        selectOption(questions[currentIdx].id, map[key]);
+      } else if (e.key === "ArrowLeft") {
+        navigateQuestion(-1);
+      } else if (e.key === "ArrowRight") {
+        navigateQuestion(1);
+      }
+    });
+
+    // Integrity Monitor
+    document.addEventListener("visibilitychange", () => {
+      if (attemptToken && currentQuizMode === "exam") {
+        fetch(`${API_BASE}/attempt/${attemptToken}/integrity-event`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            event_type: document.hidden ? "tab_blur" : "tab_focus",
+            client_timestamp: new Date().toISOString(),
+            details: { state: document.visibilityState }
+          })
+        }).catch(() => {});
+      }
+    });
+
+    window.onload = init;
+  </script>
+</body>
+</html>
